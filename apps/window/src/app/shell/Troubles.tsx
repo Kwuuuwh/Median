@@ -8,16 +8,7 @@ import { cn } from "@/shared/lib/cn";
 import { useNow } from "@/shared/lib/use-now";
 import { Button } from "@/shared/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
-import { type Source, troublesOf } from "./health";
-
-/** Short label of each source in the list; a task problem shows the task name instead. */
-const SOURCE: Record<Source, string> = {
-  gep: "GEP",
-  dbwin: "DBWIN",
-  ocr: "OCR",
-  wfm: "WFM",
-  task: "",
-};
+import { troublesOf } from "./health";
 
 /**
  * Warning badge with the problem count and a popover listing each problem; renders nothing while
@@ -59,9 +50,6 @@ export function Troubles({ state }: { state: AppState }) {
               />
               <div className="grid min-w-0 gap-0.5">
                 <span className="text-body text-ink">
-                  {each.source !== "task" && (
-                    <span className="mr-1.5 font-medium text-soft">{SOURCE[each.source]}</span>
-                  )}
                   {t(each.said, { name: each.name ?? "" })}
                 </span>
                 {each.since !== undefined && (
@@ -72,7 +60,7 @@ export function Troubles({ state }: { state: AppState }) {
                 {each.reason && (
                   <span className="wrap-anywhere text-muted text-small">{each.reason}</span>
                 )}
-                {each.loadsCollector && <CollectorHelp />}
+                {each.loadsCollector && <CollectorFolder />}
               </div>
             </li>
           ))}
@@ -82,8 +70,8 @@ export function Troubles({ state }: { state: AppState }) {
   );
 }
 
-/** How to load the collector into Overwolf, with a button that opens its folder. */
-function CollectorHelp() {
+/** Button that opens the collector's folder; nothing while median has not placed it. */
+function CollectorFolder() {
   const t = useT();
   const folder = useQuery({
     queryKey: keys.collectorFolder,
@@ -91,16 +79,13 @@ function CollectorHelp() {
   }).data;
   if (!folder) return null;
   return (
-    <div className="mt-1 grid gap-1.5">
-      <span className="text-muted text-small">{t("collector-load")}</span>
-      <Button
-        size="sm"
-        className="justify-self-start"
-        onClick={() => send(commands.showCollectorFolder())}
-      >
-        <FolderOpen />
-        {t("collector-folder-open")}
-      </Button>
-    </div>
+    <Button
+      size="sm"
+      className="mt-1 justify-self-start"
+      onClick={() => send(commands.showCollectorFolder())}
+    >
+      <FolderOpen />
+      {t("collector-folder-open")}
+    </Button>
   );
 }

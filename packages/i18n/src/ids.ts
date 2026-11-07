@@ -82,7 +82,6 @@ export type MessageId =
   | "chain-ready"
   | "chart-closed"
   | "collector-folder-open"
-  | "collector-load"
   | "currency-short"
   | "cycle-name"
   | "cycle-phase"
