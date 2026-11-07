@@ -108,7 +108,7 @@ jobs:
             '{version: $version, notes: $notes, pub_date: $date,
               platforms: {"windows-x86_64": {signature: $signature, url: $url}}}' > latest.json
           if ! gh release view "updater-$channel" > /dev/null 2>&1; then
-            gh release create "updater-$channel" --latest=false \
+            gh release create "updater-$channel" --prerelease --latest=false \
               --title "Updates: $channel" \
               --notes "Where installed $channel builds look for their next release."
           fi
