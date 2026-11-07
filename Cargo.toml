@@ -1,0 +1,76 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/median-core",
+  "crates/median-ipc",
+  "crates/median-engine",
+  "crates/median-market",
+  "crates/median-vision",
+  "crates/median-app",
+]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "MIT"
+rust-version = "1.88.0"
+
+[workspace.dependencies]
+# --- internal ---
+median-core = { path = "crates/median-core" }
+median-ipc = { path = "crates/median-ipc" }
+median-engine = { path = "crates/median-engine" }
+median-market = { path = "crates/median-market" }
+median-vision = { path = "crates/median-vision" }
+# --- app ---
+tauri = { version = "2" }
+tauri-build = { version = "2" }
+# Read the update signing key the way tauri-plugin-updater does, to test it.
+base64 = "0.22"
+minisign-verify = "0.2"
+# --- typed IPC codegen (specta) ---
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+specta-typescript = "0.0.12"
+# --- shared libs ---
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+async-trait = "0.1"
+thiserror = "2"
+tokio = { version = "1", features = [
+  "rt",
+  "rt-multi-thread",
+  "macros",
+  "sync",
+  "time",
+  "net",
+] }
+tokio-tungstenite = { version = "0.30", features = ["connect", "native-tls"] }
+futures-util = "0.3"
+keyring = { version = "4", features = ["v1"] }
+# --- http + tracing ---
+csv = "1.3"
+reqwest = { version = "0.13", features = ["json"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+proc-macro2 = { version = "1", features = ["span-locations"] }
+# --- catalog ---
+windows-capture = "2"
+windows-sys = { version = "0.61", features = [
+  "Wdk_System_SystemServices",
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Media_Audio",
+  "Win32_System_Memory",
+  "Win32_System_SystemInformation",
+  "Win32_System_Threading",
+  "Win32_UI_Accessibility",
+  "Win32_UI_WindowsAndMessaging",
+] }
+rusqlite = { version = "0.38", features = ["bundled"] }
+deadpool-sqlite = "0.13"
+flate2 = "1"
+# --- reading the screen ---
+tract-onnx = "0.23"
+image = { version = "0.25", default-features = false }
+blake3 = "1"

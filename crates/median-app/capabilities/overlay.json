@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "overlay",
+  "description": "Permissions of the overlay window drawn over the game.",
+  "windows": ["overlay"],
+  "permissions": ["core:default"]
+}

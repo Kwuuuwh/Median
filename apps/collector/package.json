@@ -1,0 +1,15 @@
+{
+  "name": "@median/collector",
+  "version": "2.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@overwolf/types": "^3",
+    "esbuild": "^0.28",
+    "typescript": "^6"
+  }
+}

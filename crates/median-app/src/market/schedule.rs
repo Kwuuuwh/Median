@@ -1,0 +1,487 @@
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
+use std::time::Duration;
+
+use async_trait::async_trait;
+use median_core::{
+    Ask, DAY, Fetch, Holder, Instant, Interest, Inventory, Kept, Need, ask_queue, seconds,
+};
+use median_ipc::{BookMoved, PricesChanged};
+use median_market::{Book, MarketError, Pass};
+use tauri::AppHandle;
+use tauri_specta::Event;
+use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::Notify;
+use tokio::time::sleep;
+use tracing::{debug, info, warn};
+
+use crate::catalog::{self, Catalog};
+use crate::market::ask::is_described;
+use crate::market::books::Books;
+use crate::market::flow::Stirred;
+use crate::market::gateway::{Filler, Gateway, Priority};
+use crate::market::needs::Needs;
+use crate::market::prices::{Listed, listed, prices_of, set_price};
+use crate::market::store::{BOOK, ITEM, LISTED, STATISTICS, Standing, Store};
+use crate::market::variant::Variant;
+use crate::state_sink::SharedHoldings;
+
+/// Items with a newly fetched book, each with the variants of its latest book, queued until
+/// taken.
+#[derive(Clone, Default)]
+pub struct Answers(Arc<AnswersInner>);
+
+#[derive(Default)]
+struct AnswersInner {
+    waiting: Mutex<Waiting>,
+    put: Notify,
+}
+
+/// Items in first-arrival order, with the latest variants of each.
+#[derive(Default)]
+struct Waiting {
+    order: VecDeque<String>,
+    latest: HashMap<String, Vec<Variant>>,
+}
+
+impl Answers {
+    pub fn put(&self, slug: &str, looked: Vec<Variant>) {
+        {
+            let mut waiting = self
+                .0
+                .waiting
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            if waiting.latest.insert(slug.to_owned(), looked).is_none() {
+                waiting.order.push_back(slug.to_owned());
+            }
+        }
+        self.0.put.notify_one();
+    }
+
+    /// Removes and returns the oldest queued item, waiting until there is one.
+    pub async fn next(&self) -> (String, Vec<Variant>) {
+        loop {
+            {
+                let mut waiting = self
+                    .0
+                    .waiting
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner);
+                if let Some(slug) = waiting.order.pop_front() {
+                    let looked = waiting.latest.remove(&slug).unwrap_or_default();
+                    return (slug, looked);
+                }
+            }
+            self.0.put.notified().await;
+        }
+    }
+}
+
+/// Interval between declarations of the inventory watch's needs.
+const DECLARE: Duration = Duration::from_secs(60);
+
+/// Refresh interval of the market item list.
+const LIST_KEEP: Instant = 7 * DAY;
+
+/// Holdings that have a market price, and the sets they form.
+#[derive(Default)]
+struct InventoryWatch {
+    holdings: Vec<Listed>,
+    sets: BTreeSet<String>,
+}
+
+/// Scheduler that keeps the market cache fresh and passes every fetched book to the market
+/// cache, the inventory watch, the agent and the window.
+pub struct Freshener {
+    app: AppHandle,
+    gateway: Gateway,
+    store: Arc<Store>,
+    needs: Needs,
+    stirred: Stirred,
+    books: Books,
+    answers: Answers,
+    running: Arc<AsyncMutex<bool>>,
+    kept: Mutex<HashMap<String, Kept>>,
+    flying: Mutex<HashSet<(String, Fetch)>>,
+    inventory_watch: RwLock<Arc<InventoryWatch>>,
+}
+
+impl Freshener {
+    #[allow(clippy::too_many_arguments)]
+    pub async fn new(
+        app: AppHandle,
+        gateway: Gateway,
+        store: Arc<Store>,
+        needs: Needs,
+        stirred: Stirred,
+        books: Books,
+        answers: Answers,
+        running: Arc<AsyncMutex<bool>>,
+    ) -> Result<Self, String> {
+        let mut kept: HashMap<String, Kept> = HashMap::new();
+        for (slug, at) in store.stamps(BOOK).await.map_err(|e| e.to_string())? {
+            kept.entry(slug).or_default().book = Some(at);
+        }
+        for (slug, at) in store.stamps(STATISTICS).await.map_err(|e| e.to_string())? {
+            kept.entry(slug).or_default().trades = Some(at);
+        }
+        Ok(Self {
+            app,
+            gateway,
+            store,
+            needs,
+            stirred,
+            books,
+            answers,
+            running,
+            kept: Mutex::new(kept),
+            flying: Mutex::new(HashSet::new()),
+            inventory_watch: RwLock::new(Arc::default()),
+        })
+    }
+
+    /// Fetches the book of one item at user priority; `of` is the variant the user is viewing.
+    pub async fn book_now(&self, slug: &str, of: &Variant) -> Result<Book, String> {
+        self.describe(Priority::Person, slug).await?;
+        let book = self
+            .gateway
+            .call(Priority::Person, |pass| {
+                self.gateway.client().book(pass, slug)
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+        self.took(slug, &book, std::slice::from_ref(of)).await?;
+        Ok(book)
+    }
+
+    /// Fetches the item's variants and lot rule unless the market cache has a current
+    /// description.
+    async fn describe(&self, priority: Priority, slug: &str) -> Result<(), String> {
+        if self.described(slug).await {
+            return Ok(());
+        }
+        super::describe(&self.gateway, &self.store, priority, slug).await
+    }
+
+    async fn described(&self, slug: &str) -> bool {
+        matches!(
+            (
+                self.store.variants_asked(slug).await,
+                self.store.lots_allowed(slug).await,
+            ),
+            (Ok(Some(_)), Ok(Some(_)))
+        ) && is_described(&self.store, slug).await
+    }
+
+    /// Saves one book to the market cache and passes it to the inventory watch, the agent and
+    /// the window.
+    async fn took(&self, slug: &str, book: &Book, also: &[Variant]) -> Result<(), String> {
+        let now = seconds();
+        let needs = self.needs.all();
+        let mut variants = self
+            .store
+            .variants_asked(slug)
+            .await
+            .map_err(|e| e.to_string())?
+            .unwrap_or_default();
+        let wanted = needs
+            .iter()
+            .filter(|need| need.slug == slug)
+            .map(|need| Variant::parse(&need.variant))
+            .chain(also.iter().cloned());
+        for variant in wanted {
+            if !variants.contains(&variant) {
+                variants.push(variant);
+            }
+        }
+
+        let looks = self
+            .store
+            .keep_look(slug, book, &variants)
+            .await
+            .map_err(|e| e.to_string())?;
+        self.store
+            .stamp(slug, BOOK)
+            .await
+            .map_err(|e| e.to_string())?;
+        self.stirred.settle(slug);
+        self.kept().entry(slug.to_owned()).or_default().book = Some(now);
+
+        if traded(&needs, slug) {
+            self.books.keep(slug, book.clone(), now);
+            let _ = BookMoved {
+                slug: slug.to_owned(),
+            }
+            .emit(&self.app);
+        }
+        if let Err(why) = self.tell(slug, now).await {
+            warn!(error = %why, slug, "price update not sent to window");
+        }
+        let looked = looks.into_iter().map(|(variant, _)| variant).collect();
+        self.answers.put(slug, looked);
+        Ok(())
+    }
+
+    /// Sends the window the inventory watch's new prices for one item.
+    async fn tell(&self, slug: &str, now: Instant) -> Result<(), String> {
+        let watch = Arc::clone(
+            &self
+                .inventory_watch
+                .read()
+                .unwrap_or_else(PoisonError::into_inner),
+        );
+        let held = prices_of(&self.store, &watch.holdings, slug, now).await?;
+        let sets = match watch.sets.contains(slug) {
+            true => vec![set_price(&self.store, slug, now).await?],
+            false => Vec::new(),
+        };
+        if !held.is_empty() || !sets.is_empty() {
+            let _ = PricesChanged { held, sets }.emit(&self.app);
+        }
+        Ok(())
+    }
+
+    /// (items whose book is within the `Watched` freshness limit, all items).
+    pub async fn warmth(&self, items: &[String]) -> (u32, u32) {
+        let keeps = Interest::Watched.keeps(*self.running.lock().await);
+        let now = seconds();
+        let kept = self.kept();
+        let warm = items
+            .iter()
+            .filter(|slug| {
+                kept.get(slug.as_str())
+                    .and_then(|known| known.book)
+                    .is_some_and(|at| now - at <= keeps)
+            })
+            .count();
+        let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
+        (count(warm), count(items.len()))
+    }
+
+    fn kept(&self) -> std::sync::MutexGuard<'_, HashMap<String, Kept>> {
+        self.kept.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn flying(&self) -> std::sync::MutexGuard<'_, HashSet<(String, Fetch)>> {
+        self.flying.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Requests due now, most urgent first, excluding those in flight.
+    async fn asks(&self) -> Vec<Ask> {
+        let agent_on = *self.running.lock().await;
+        let needs = self.needs.all();
+        let asks = {
+            let kept = self.kept();
+            let known = |slug: &str| Kept {
+                stirred: self.stirred.moved(slug),
+                ..kept.get(slug).copied().unwrap_or_default()
+            };
+            ask_queue(&needs, &known, agent_on, seconds())
+        };
+        let flying = self.flying();
+        asks.into_iter()
+            .filter(|ask| !flying.contains(&(ask.slug.clone(), ask.fetch)))
+            .collect()
+    }
+
+    fn board(&self, ask: Ask) -> Ask {
+        self.flying().insert((ask.slug.clone(), ask.fetch));
+        ask
+    }
+
+    /// Makes the one market request for `ask`; a book request for an item without a current
+    /// description fetches the description instead.
+    async fn fetch(&self, ask: &Ask, pass: Pass) -> Result<(), MarketError> {
+        let client = self.gateway.client();
+        let slug = ask.slug.as_str();
+        match ask.fetch {
+            Fetch::Book if !self.described(slug).await => {
+                let meta = client.item(pass, slug).await?;
+                note(self.store.keep_item(&meta).await, slug);
+                note(self.store.stamp(slug, ITEM).await, slug);
+            }
+            Fetch::Book => {
+                let book = client.book(pass, slug).await?;
+                note(self.took(slug, &book, &[]).await, slug);
+            }
+            Fetch::Trades => {
+                let statistics = client.statistics(pass, slug).await?;
+                note(self.store.keep_closed(slug, &statistics).await, slug);
+                let standing = statistics
+                    .live_daily
+                    .iter()
+                    .filter_map(Standing::of_live)
+                    .collect();
+                note(
+                    self.store
+                        .keep_standing(vec![(slug.to_owned(), standing)])
+                        .await,
+                    slug,
+                );
+                note(self.store.stamp(slug, STATISTICS).await, slug);
+            }
+        }
+        Ok(())
+    }
+
+    /// Records a request as made, whether or not it succeeded.
+    fn asked(&self, ask: &Ask) {
+        let now = seconds();
+        self.flying().remove(&(ask.slug.clone(), ask.fetch));
+        let mut kept = self.kept();
+        let entry = kept.entry(ask.slug.clone()).or_default();
+        match ask.fetch {
+            Fetch::Book => entry.book = Some(entry.book.map_or(now, |at| at.max(now))),
+            Fetch::Trades => entry.trades = Some(now),
+        }
+    }
+
+    /// Every `DECLARE`, refreshes the item list when due and declares the inventory watch's
+    /// needs.
+    pub async fn tend(
+        self: Arc<Self>,
+        catalog: Arc<Catalog>,
+        holdings: SharedHoldings,
+    ) -> Result<(), String> {
+        loop {
+            self.list().await;
+            let held = holdings.read().inventory;
+            match shown(&catalog, &self.store, &held).await {
+                Ok(watch) => {
+                    self.needs
+                        .declare(Holder::Inventory, inventory_needs(&watch));
+                    *self
+                        .inventory_watch
+                        .write()
+                        .unwrap_or_else(PoisonError::into_inner) = Arc::new(watch);
+                }
+                Err(why) => warn!(error = %why, "inventory price watch list read failed"),
+            }
+            sleep(DECLARE).await;
+        }
+    }
+
+    /// Fetches the market item list once the stored one is older than `LIST_KEEP`.
+    async fn list(&self) {
+        let asked = self.store.stamped("", LISTED).await.unwrap_or(None);
+        if asked.is_some_and(|at| seconds() - at < LIST_KEEP) {
+            return;
+        }
+        let listed = self
+            .gateway
+            .call(Priority::Background, |pass| {
+                self.gateway.client().items(pass)
+            })
+            .await;
+        match listed {
+            Ok(listed) => match self.store.keep_listed(listed).await {
+                Ok(count) => {
+                    info!(items = count, "market item list read");
+                    let _ = self.store.stamp("", LISTED).await;
+                }
+                Err(e) => warn!(error = %e, "market item list not saved"),
+            },
+            Err(e) => warn!(error = %e, "market item list read failed"),
+        }
+    }
+}
+
+#[async_trait]
+impl Filler for Freshener {
+    type Work = Ask;
+
+    async fn pressing(&self) -> Option<Ask> {
+        let first = self.asks().await.into_iter().next()?;
+        (first.waiting && first.overdue >= 1.0).then(|| self.board(first))
+    }
+
+    async fn pick(&self) -> Option<Ask> {
+        let first = self.asks().await.into_iter().next()?;
+        Some(self.board(first))
+    }
+
+    async fn run(&self, ask: Ask, pass: Pass) {
+        let outcome = self.fetch(&ask, pass).await;
+        self.asked(&ask);
+        match outcome {
+            Ok(()) => {}
+            Err(trouble) if self.gateway.client().gate().failing_since().is_some() => {
+                debug!(slug = ask.slug, error = %trouble, "market answer unusable");
+            }
+            Err(trouble) => warn!(slug = ask.slug, error = %trouble, "market answer unusable"),
+        }
+    }
+}
+
+/// Whether a need marks the item as traded, so its full book is kept in memory.
+fn traded(needs: &[Need], slug: &str) -> bool {
+    needs.iter().any(|need| {
+        need.slug == slug
+            && matches!(
+                need.interest,
+                Interest::Committed | Interest::Glimpsed | Interest::Watched | Interest::Sampled
+            )
+    })
+}
+
+fn note<T, E: std::fmt::Display>(written: Result<T, E>, slug: &str) {
+    if let Err(why) = written {
+        warn!(error = %why, slug, "market answer not saved");
+    }
+}
+
+/// Every holding that has a market price, and every set the holdings form.
+async fn shown(
+    catalog: &Catalog,
+    store: &Store,
+    held: &Inventory,
+) -> Result<InventoryWatch, String> {
+    let holdings = listed(catalog, store, held).await?;
+    let items = held.items();
+    let sets = catalog
+        .read(move |connection| catalog::set_slugs(connection, &items))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(InventoryWatch {
+        holdings,
+        sets: sets.into_iter().collect(),
+    })
+}
+
+fn inventory_needs(watch: &InventoryWatch) -> Vec<Need> {
+    let pairs: BTreeSet<(String, String)> = watch
+        .holdings
+        .iter()
+        .map(|holding| (holding.slug.clone(), holding.of.key()))
+        .chain(watch.sets.iter().map(|slug| (slug.clone(), String::new())))
+        .collect();
+    pairs
+        .into_iter()
+        .map(|(slug, variant)| Need {
+            slug,
+            variant,
+            interest: Interest::Held,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn answers_keep_the_latest_of_each_item_in_the_order_they_first_came() {
+        let answers = Answers::default();
+        answers.put("ash_prime_set", vec![]);
+        answers.put("serration", vec![Variant::default()]);
+        answers.put("ash_prime_set", vec![Variant::default()]);
+
+        assert_eq!(
+            answers.next().await,
+            ("ash_prime_set".to_owned(), vec![Variant::default()])
+        );
+        assert_eq!(answers.next().await.0, "serration");
+    }
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "launcher",
+  "description": "Permissions of the launcher window shown while game data is prepared.",
+  "windows": ["launcher"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-minimize",
+    "core:window:allow-start-dragging",
+    "core:window:allow-close"
+  ]
+}

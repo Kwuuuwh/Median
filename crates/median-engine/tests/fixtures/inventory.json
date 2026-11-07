@@ -1,0 +1,173 @@
+{
+  "Created": { "$date": { "$numberLong": "1700000000000" } },
+  "LastInventorySync": { "$oid": "6a7306dd0785235c0a0ddea1" },
+  "RewardSeed": -1234,
+  "DailyFocus": 250000,
+  "RegularCredits": 1337,
+  "FusionPoints": 68015,
+  "PremiumCredits": 3,
+  "TradesRemaining": 11,
+  "PendingTrades": [
+    {
+      "BuddyReady": false,
+      "ClanTax": 1,
+      "Getting": {
+        "PremiumCredits": 48,
+        "_SlotOrderInfo": ["P", "", "", "", "", ""]
+      },
+      "Revision": 1,
+      "SelfReady": false,
+      "State": 1,
+      "ItemId": { "$oid": "5fadacad88d2db551909309e" }
+    }
+  ],
+  "MiscItems": [
+    { "ItemType": "/Lotus/Types/Items/MiscItems/Rubedo", "ItemCount": 24928 },
+    { "ItemType": "/Lotus/Types/Items/MiscItems/Ferrite", "ItemCount": 500 },
+    { "ItemType": "/Lotus/Types/Items/MiscItems/OrokinCell", "ItemCount": 12 }
+  ],
+  "Recipes": [
+    {
+      "ItemType": "/Lotus/Types/Recipes/Weapons/BurstonPrimeBarrelBlueprint",
+      "ItemCount": 3
+    },
+    {
+      "ItemType": "/Lotus/Types/Recipes/Weapons/BurstonPrimeStockBlueprint",
+      "ItemCount": 1
+    },
+    {
+      "ItemType": "/Lotus/Types/Recipes/Weapons/BurstonPrimeBlueprint",
+      "ItemCount": 2
+    }
+  ],
+  "RawUpgrades": [
+    {
+      "ItemType": "/Lotus/Upgrades/Mods/Warframe/AvatarHealthMaxMod",
+      "ItemCount": 4,
+      "LastAdded": { "$oid": "000000000000000000000001" }
+    }
+  ],
+  "Consumables": [
+    {
+      "ItemType": "/Lotus/Types/Restoratives/HealthDroneDeploy",
+      "ItemCount": 6
+    }
+  ],
+  "FusionTreasures": [
+    {
+      "ItemType": "/Lotus/Types/Items/FusionTreasures/OroFusexD",
+      "ItemCount": 1,
+      "Sockets": 7
+    },
+    {
+      "ItemType": "/Lotus/Types/Items/FusionTreasures/AnasaSculpture",
+      "ItemCount": 1,
+      "Sockets": 0
+    }
+  ],
+  "Upgrades": [
+    {
+      "ItemType": "/Lotus/Upgrades/Mods/Warframe/AvatarShieldMaxMod",
+      "ItemId": { "$oid": "000000000000000000000011" },
+      "UpgradeFingerprint": "{\"lvl\":2}"
+    },
+    {
+      "ItemType": "/Lotus/Upgrades/Mods/Warframe/AvatarShieldMaxMod",
+      "ItemId": { "$oid": "000000000000000000000012" },
+      "UpgradeFingerprint": "{\"lvl\":5}"
+    },
+    {
+      "ItemType": "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare",
+      "ItemId": { "$oid": "000000000000000000000013" },
+      "UpgradeFingerprint": "{\"compat\":\"/Lotus/Weapons/Tenno/Rifle/Rifle\",\"lim\":0,\"rerolls\":3,\"buffs\":[{\"Tag\":\"WeaponCritChanceMod\",\"Value\":858993459}]}"
+    }
+  ],
+  "CrewShipWeaponSkins": [
+    {
+      "ItemType": "/Lotus/Types/Items/ShipDecos/CrewShipWeaponSkinA",
+      "ItemId": { "$oid": "000000000000000000000021" },
+      "UpgradeFingerprint": "{\"lvl\":0}",
+      "IsNew": true
+    }
+  ],
+  "WeaponSkins": [
+    {
+      "ItemType": "/Lotus/Upgrades/Skins/Rifle/RifleSkinA",
+      "ItemId": { "$oid": "000000000000000000000031" }
+    }
+  ],
+  "FlavourItems": [
+    { "ItemType": "/Lotus/Types/StoreItems/Packages/GlyphA" },
+    { "ItemType": "/Lotus/Types/StoreItems/Packages/GlyphB" }
+  ],
+  "Suits": [
+    {
+      "ItemType": "/Lotus/Powersuits/Excalibur/Excalibur",
+      "ItemId": { "$oid": "000000000000000000000041" },
+      "Configs": [[], {}, {}],
+      "XP": 900000,
+      "Features": 1,
+      "UpgradeVer": 101
+    },
+    {
+      "ItemType": "/Lotus/Powersuits/Excalibur/Excalibur",
+      "ItemId": { "$oid": "000000000000000000000042" },
+      "Configs": [{}],
+      "XP": 12000,
+      "UpgradeVer": 101
+    },
+    {
+      "ItemType": "/Lotus/Powersuits/Excalibur/ExcaliburUmbra",
+      "ItemId": { "$oid": "000000000000000000000043" },
+      "Configs": [{}],
+      "XP": 1500000,
+      "UpgradeVer": 101
+    }
+  ],
+  "LongGuns": [
+    {
+      "ItemType": "/Lotus/Weapons/Tenno/Rifle/BurstonPrime",
+      "ItemId": { "$oid": "000000000000000000000051" },
+      "Configs": [
+        {
+          "Upgrades": [
+            "000000000000000000000012",
+            "/Lotus/Upgrades/Mods/Warframe/AvatarHealthMaxMod",
+            ""
+          ]
+        }
+      ],
+      "XP": 450000,
+      "UpgradeVer": 101
+    }
+  ],
+  "XPInfo": [
+    { "ItemType": "/Lotus/Weapons/Tenno/Rifle/BurstonPrime", "XP": 450000 },
+    { "ItemType": "/Lotus/Powersuits/Excalibur/Excalibur", "XP": 128000 }
+  ],
+  "PendingRecipes": [
+    {
+      "ItemType": "/Lotus/Types/Recipes/Weapons/BurstonPrimeBlueprint",
+      "ItemId": { "$oid": "000000000000000000000061" },
+      "CompletionDate": { "$date": { "$numberLong": "1700000600000" } }
+    }
+  ],
+  "ChallengeProgress": [
+    { "Name": "SeasonDailyKillEnemies", "Progress": 42 },
+    { "Name": "SeasonWeeklyCompleteMissions", "Progress": 3 }
+  ],
+  "Missions": [{ "Tag": "SolNode1", "Completes": 17 }],
+  "QuestKeys": [
+    {
+      "ItemType": "/Lotus/Types/Keys/VorsPrize/VorsPrizeQuestKeyChain",
+      "Completed": true,
+      "unlock": true
+    }
+  ],
+  "Boosters": [
+    {
+      "ItemType": "/Lotus/Types/Boosters/AffinityBooster",
+      "ExpiryDate": { "$date": { "$numberLong": "1700086400000" } }
+    }
+  ]
+}

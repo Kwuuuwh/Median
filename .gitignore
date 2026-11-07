@@ -1,0 +1,27 @@
+# Rust build output
+/target
+
+# Node
+node_modules/
+*.tsbuildinfo
+debug-storybook.log
+
+# Tauri build-time codegen
+/crates/median-app/gen
+
+# Frontend build output
+/crates/median-app/dist
+
+# OS / editor
+.DS_Store
+.env
+/.Trash-1000
+
+# Other
+/probe
+/.agents
+/.claude
+CLAUDE.md
+
+# Collector build output
+/apps/collector/dist

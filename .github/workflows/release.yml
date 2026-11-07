@@ -1,0 +1,114 @@
+name: release
+
+on:
+  push:
+    branches: [preview, main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Describe the release
+        id: describe
+        run: |
+          revision=$(git rev-list --count HEAD)
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            channel=stable
+            prerelease=false
+          else
+            channel=preview
+            prerelease=true
+          fi
+          previous=$(gh release list --limit 100 --json tagName,isPrerelease \
+            --jq "[.[] | select((.tagName | test(\"^r[0-9]+$\")) and .isPrerelease == $prerelease)][0].tagName // empty")
+          git log --no-merges --format=%s ${previous:+"$previous"..}HEAD > subjects.txt
+          : > notes.txt
+          : > notes.md
+          for group in feat:Added fix:Fixed perf:Improved; do
+            type=${group%%:*}
+            lines=$(grep -E "^$type(\([^)]*\))?!?: " subjects.txt \
+              | sed -E "s/^$type(\([^)]*\))?!?: //; s/^./\u&/" || true)
+            if [ -n "$lines" ]; then
+              echo "$lines" >> notes.txt
+              { echo "### ${group#*:}"; echo "$lines" | sed 's/^/- /'; echo; } >> notes.md
+            fi
+          done
+          if [ ! -s notes.txt ]; then
+            if [ -n "$previous" ]; then echo "Maintenance release"; else echo "First release"; fi > notes.txt
+            cp notes.txt notes.md
+          fi
+          {
+            echo "revision=$revision"
+            echo "channel=$channel"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build the collector
+        run: pnpm collector
+
+      - name: Build and sign
+        env:
+          MEDIAN_CHANNEL: ${{ steps.describe.outputs.channel }}
+          MEDIAN_UPDATE_SOURCE: https://github.com/${{ github.repository }}/releases/download/updater-{channel}/latest.json
+          MEDIAN_NOTES_FILE: ${{ github.workspace }}/notes.txt
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          revision=${{ steps.describe.outputs.revision }}
+          pnpm tauri build --config "{\"productName\":\"Median\",\"identifier\":\"com.median.desktop\",\"version\":\"0.0.$revision\",\"bundle\":{\"resources\":{\"../../apps/collector/dist\":\"collector\"}}}"
+
+      - name: Publish r${{ steps.describe.outputs.revision }}
+        run: |
+          revision=${{ steps.describe.outputs.revision }}
+          setup=$(ls target/release/bundle/nsis/*-setup.exe)
+          flags="--latest"
+          if [ "${{ steps.describe.outputs.prerelease }}" = "true" ]; then
+            flags="--prerelease --latest=false"
+          fi
+          gh release create "r$revision" "$setup" "$setup.sig" \
+            --target "$GITHUB_SHA" --title "r$revision" --notes-file notes.md $flags
+
+      - name: Announce the update
+        run: |
+          revision=${{ steps.describe.outputs.revision }}
+          channel=${{ steps.describe.outputs.channel }}
+          setup=$(ls target/release/bundle/nsis/*-setup.exe)
+          jq -n \
+            --arg version "0.0.$revision" \
+            --rawfile notes notes.txt \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg signature "$(cat "$setup.sig")" \
+            --arg url "https://github.com/$GITHUB_REPOSITORY/releases/download/r$revision/$(basename "$setup")" \
+            '{version: $version, notes: $notes, pub_date: $date,
+              platforms: {"windows-x86_64": {signature: $signature, url: $url}}}' > latest.json
+          if ! gh release view "updater-$channel" > /dev/null 2>&1; then
+            gh release create "updater-$channel" --latest=false \
+              --title "Updates: $channel" \
+              --notes "Where installed $channel builds look for their next release."
+          fi
+          gh release upload "updater-$channel" latest.json --clobber

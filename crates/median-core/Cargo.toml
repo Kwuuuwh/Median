@@ -1,0 +1,10 @@
+[package]
+name = "median-core"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+blake3.workspace = true
+thiserror.workspace = true

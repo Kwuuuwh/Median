@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Lint with the developer tools
+        run: cargo clippy --workspace --all-targets --features median-app/dev -- -D warnings
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Bindings match the commands
+        shell: bash
+        run: |
+          cargo run -p median-app --features dev --bin export-bindings
+          git diff --exit-code -- packages/ipc/src/bindings.ts
+
+  window:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Texts
+        run: pnpm --filter @median/i18n typecheck
+      - name: Types
+        run: pnpm --filter @median/window typecheck
+      - name: Lint
+        run: pnpm --filter @median/window lint
+      - name: Test
+        run: pnpm --filter @median/window test
+      - name: Collector types
+        run: pnpm --filter @median/collector typecheck

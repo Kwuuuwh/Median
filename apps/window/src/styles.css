@@ -1,0 +1,145 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  color-scheme: dark;
+  --paint-canvas: #0b0c0e;
+  --paint-surface: #111214;
+  --paint-raised: #17181b;
+  --paint-sunken: #08090a;
+  --paint-line: rgb(255 255 255 / 8%);
+  --paint-hairline: rgb(255 255 255 / 5%);
+  --paint-ink: #eceef1;
+  --paint-soft: #c9ccd2;
+  --paint-muted: #8b9099;
+  --paint-dim: #5f636b;
+  --paint-plat: #9fb4ff;
+  --paint-duc: #e0bd74;
+  --paint-live: #4cc38a;
+  --paint-warn: #e2a64e;
+  --paint-danger: #eb6f7c;
+  --paint-accent: #7c85f2;
+  --paint-phase-day: #e8b75f;
+  --paint-phase-night: #7b8cff;
+  --paint-phase-warm: #ef8f6a;
+  --paint-phase-cold: #62b8e8;
+  --paint-phase-fass: #e3a34f;
+  --paint-phase-vome: #9d86f5;
+  --paint-phase-joy: #e6c649;
+  --paint-phase-anger: #ec6d5f;
+  --paint-phase-envy: #5fc98a;
+  --paint-phase-sorrow: #6a95ee;
+  --paint-phase-fear: #b07fe6;
+}
+
+@theme inline {
+  --color-canvas: var(--paint-canvas);
+  --color-surface: var(--paint-surface);
+  --color-raised: var(--paint-raised);
+  --color-sunken: var(--paint-sunken);
+  --color-line: var(--paint-line);
+  --color-hairline: var(--paint-hairline);
+  --color-ink: var(--paint-ink);
+  --color-soft: var(--paint-soft);
+  --color-muted: var(--paint-muted);
+  --color-dim: var(--paint-dim);
+  --color-plat: var(--paint-plat);
+  --color-duc: var(--paint-duc);
+  --color-live: var(--paint-live);
+  --color-warn: var(--paint-warn);
+  --color-danger: var(--paint-danger);
+  --color-accent: var(--paint-accent);
+}
+
+@theme {
+  --font-sans: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-display:
+    "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+
+  --text-caption: 11px;
+  --text-caption--line-height: 14px;
+  --text-small: 12px;
+  --text-small--line-height: 16px;
+  --text-body: 13px;
+  --text-body--line-height: 18px;
+  --text-title: 15px;
+  --text-title--line-height: 20px;
+  --text-heading: 20px;
+  --text-heading--line-height: 26px;
+  --text-figure: 24px;
+  --text-figure--line-height: 28px;
+
+  --radius-control: 6px;
+  --radius-panel: 10px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paint-canvas);
+  color: var(--paint-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+:focus-visible {
+  outline: none;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--paint-line);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+/* biome-ignore-start lint/complexity/noImportantStyles: reduced motion has to win over every animation */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+/* biome-ignore-end lint/complexity/noImportantStyles: reduced motion has to win over every animation */
+
+@theme {
+  --animate-glint: glint 1.8s ease-in-out infinite;
+  --animate-warmed: warmed 1.6s ease-out;
+
+  @keyframes glint {
+    from {
+      transform: translateX(-110%);
+    }
+    to {
+      transform: translateX(330%);
+    }
+  }
+
+  @keyframes warmed {
+    0% {
+      box-shadow: 0 0 0 0 transparent;
+    }
+    35% {
+      box-shadow: 0 0 10px 1px var(--paint-live);
+    }
+    100% {
+      box-shadow: 0 0 0 0 transparent;
+    }
+  }
+}

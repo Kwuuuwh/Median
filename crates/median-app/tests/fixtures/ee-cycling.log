@@ -1,0 +1,28 @@
+32.323 Sys [Info]: Created /Lotus/Interface/OmegaRerollSelection.swf
+33.151 Script [Info]: OmegaRerollSelection.lua: Diorama setup
+103.300 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Вы уверены, что хотите изменить характеристики мода Парные Токсоцисты Hexa-visitis за 3,500?, title= leftItem=/Menu/Confirm_Item_Yes, rightItem=/Menu/Confirm_Item_No)
+104.116 Script [Info]: Dialog.lua: SendResult_MENU_SELECT()
+104.116 Script [Info]: Dialog.lua: Dialog::SendResult(4)
+125.400 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Создать выбранный мод Разлома?, title= leftItem=/Menu/Confirm_Item_Yes, rightItem=/Menu/Confirm_Item_No)
+129.532 Script [Info]: Dialog.lua: SendResult_MENU_SELECT()
+129.532 Script [Info]: Dialog.lua: Dialog::SendResult(4)
+144.884 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Вы уверены, что хотите изменить характеристики мода Парные Токсоцисты Hexa-visitis за 3,500?, title= leftItem=/Menu/Confirm_Item_Yes, rightItem=/Menu/Confirm_Item_No)
+145.899 Script [Info]: Dialog.lua: SendResult_MENU_CANCEL()
+145.899 Script [Info]: Dialog.lua: Dialog::SendResult(5)
+147.900 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Вы уверены, что хотите изменить характеристики мода Парные Токсоцисты Hexa-visitis за 3,500?, title= leftItem=/Menu/Confirm_Item_Yes, rightItem=/Menu/Confirm_Item_No)
+148.649 Script [Info]: Dialog.lua: SendResult_MENU_SELECT()
+148.649 Script [Info]: Dialog.lua: Dialog::SendResult(4)
+159.200 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Создать выбранный мод Разлома?, title= leftItem=/Menu/Confirm_Item_Yes, rightItem=/Menu/Confirm_Item_No)
+159.849 Script [Info]: Dialog.lua: SendResult_MENU_SELECT()
+159.849 Script [Info]: Dialog.lua: Dialog::SendResult(4)
+162.885 Sys [Info]: Flushed 43,728 bytes of recycled effects.
+162.885 AI [Info]: NpcManager::ClearAgents() ReadyToCreateAgents = false
+162.885 AI [Info]: NpcManager::ClearAgents() ReadyToCreateAgents = false
+167.955 Sys [Info]: Created /Lotus/Interface/OmegaRerollSelection.swf
+168.619 AI [Info]: NpcManager::ClearAgents() ReadyToCreateAgents = false
+168.635 AI [Info]: NpcManager::ClearAgents() ReadyToCreateAgents = false
+168.784 Script [Info]: OmegaRerollSelection.lua: Diorama setup
+249.199 Script [Info]: Dialog.lua: SendResult_MENU_SELECT()
+249.199 Script [Info]: Dialog.lua: Dialog::SendResult(4)
+249.341 AI [Info]: NpcManager::ClearAgents() ReadyToCreateAgents = false
+249.363 Sys [Info]: Flushed 80 bytes of recycled effects.

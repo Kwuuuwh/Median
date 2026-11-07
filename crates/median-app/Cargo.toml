@@ -1,0 +1,65 @@
+[package]
+name = "median-app"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+rust-version.workspace = true
+default-run = "median-app"
+
+[features]
+# Developer tools: the window-answer recorder for the frontend stand and the IPC bindings export.
+# Off in every user build.
+dev = []
+
+[[bin]]
+name = "snapshot"
+path = "src/bin/snapshot.rs"
+required-features = ["dev"]
+
+[[bin]]
+name = "export-bindings"
+path = "src/bin/export-bindings.rs"
+required-features = ["dev"]
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+median-core.workspace = true
+median-engine.workspace = true
+median-ipc.workspace = true
+median-market.workspace = true
+median-vision.workspace = true
+tauri.workspace = true
+tauri-specta.workspace = true
+specta.workspace = true
+specta-typescript.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+csv.workspace = true
+reqwest.workspace = true
+rusqlite.workspace = true
+deadpool-sqlite.workspace = true
+thiserror.workspace = true
+flate2.workspace = true
+blake3.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tokio-tungstenite.workspace = true
+futures-util.workspace = true
+keyring.workspace = true
+tauri-plugin-notification = "=2.3.1"
+tauri-plugin-single-instance = "=2.4.4"
+tauri-plugin-updater = "=2.12.0"
+
+[dev-dependencies]
+base64.workspace = true
+image = { workspace = true, features = ["png"] }
+minisign-verify.workspace = true
+proc-macro2.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-capture.workspace = true
+windows-sys.workspace = true

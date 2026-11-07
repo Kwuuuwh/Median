@@ -1,0 +1,20 @@
+/** Mission type codes that fissures have in the world-state document. */
+export const MISSION_CODES: readonly string[] = [
+  "MT_ALCHEMY",
+  "MT_ARMAGEDDON",
+  "MT_ARTIFACT",
+  "MT_ASSAULT",
+  "MT_CAPTURE",
+  "MT_CORRUPTION",
+  "MT_DEFENSE",
+  "MT_EXCAVATE",
+  "MT_EXTERMINATION",
+  "MT_HIVE",
+  "MT_INTEL",
+  "MT_MOBILE_DEFENSE",
+  "MT_RESCUE",
+  "MT_SABOTAGE",
+  "MT_SURVIVAL",
+  "MT_TERRITORY",
+  "MT_VOID_CASCADE",
+];

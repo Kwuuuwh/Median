@@ -1,0 +1,27 @@
+{
+  "manifest_version": 1,
+  "type": "WebApp",
+  "meta": {
+    "name": "median collector",
+    "author": "median",
+    "version": "2.1.0",
+    "minimum-overwolf-version": "0.199.0.0",
+    "description": "Passes the Warframe game-event feed to median, unread.",
+    "icon": "icon.png",
+    "icon_gray": "icon_gray.png"
+  },
+  "permissions": ["GameInfo"],
+  "data": {
+    "start_window": "background",
+    "game_targeting": { "type": "dedicated", "game_ids": [8954] },
+    "game_events": [8954],
+    "launch_events": [{ "event": "GameLaunch", "event_data": { "game_ids": [8954] } }],
+    "windows": {
+      "background": {
+        "file": "background.html",
+        "is_background_page": true,
+        "show_in_taskbar": false
+      }
+    }
+  }
+}

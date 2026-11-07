@@ -1,0 +1,16 @@
+{
+  "name": "median",
+  "private": true,
+  "packageManager": "pnpm@11.8.0",
+  "scripts": {
+    "dev": "pnpm --filter @median/window dev",
+    "build": "pnpm --filter @median/window build",
+    "collector": "pnpm --filter @median/collector build",
+    "test": "pnpm -r run --if-present test",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "typescript": "^6"
+  }
+}
