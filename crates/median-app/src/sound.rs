@@ -41,10 +41,9 @@ fn quieter(mut wav: Vec<u8>, volume: u8) -> Option<Vec<u8>> {
     }
 
     let scale = f32::from(volume.min(100)) / 100.0;
-    for sample in wav[data.0..data.1].chunks_exact_mut(2) {
-        let value = i16::from_le_bytes([sample[0], sample[1]]);
-        let quiet = (f32::from(value) * scale) as i16;
-        sample.copy_from_slice(&quiet.to_le_bytes());
+    for sample in wav[data.0..data.1].as_chunks_mut::<2>().0 {
+        let quiet = (f32::from(i16::from_le_bytes(*sample)) * scale) as i16;
+        *sample = quiet.to_le_bytes();
     }
     Some(wav)
 }
