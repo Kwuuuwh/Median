@@ -1,6 +1,39 @@
 import type { AppState, Catalog, Game, Piece, Swap } from "@median/ipc";
-import { describe, expect, it } from "vitest";
-import { applyMoves, dataReplaced, traded } from "./events";
+import { QueryClient } from "@tanstack/react-query";
+import { describe, expect, it, vi } from "vitest";
+import { applyMoves, dataReplaced, followEvents, traded } from "./events";
+
+const followed = vi.hoisted(() => new Set<string>());
+
+vi.mock("@median/ipc", async (original) => {
+  const ipc = await original<typeof import("@median/ipc")>();
+  const events = Object.fromEntries(
+    Object.keys(ipc.events).map((name) => [
+      name,
+      {
+        listen: async () => {
+          followed.add(name);
+          return () => {};
+        },
+      },
+    ]),
+  );
+  return { ...ipc, events };
+});
+
+describe("followEvents", () => {
+  it("follows every event the backend emits", async () => {
+    const ipc = await vi.importActual<typeof import("@median/ipc")>("@median/ipc");
+    /** Followed outside `followEvents`: by the updater and the alarm listener. */
+    const elsewhere = ["updateProgressed", "rang"];
+    await followEvents(new QueryClient());
+    expect([...followed].sort()).toEqual(
+      Object.keys(ipc.events)
+        .filter((name) => !elsewhere.includes(name))
+        .sort(),
+    );
+  });
+});
 
 const piece = (item: string, count: number): Piece => ({
   item,

@@ -65,6 +65,9 @@ export async function followEvents(client: QueryClient): Promise<void> {
   await Promise.all([
     events.settingsChanged.listen(({ payload }) => patchState(client, payload)),
     events.accountChanged.listen(({ payload }) => patchState(client, payload)),
+    events.collectorChanged.listen(({ payload }) => patchState(client, payload)),
+    events.tasksChanged.listen(({ payload }) => patchState(client, payload)),
+    events.quarantineChanged.listen(({ payload }) => patchState(client, payload)),
     events.membershipChanged.listen(({ payload }) => patchState(client, payload)),
     events.catalogChanged.listen(({ payload }) => {
       const before = client.getQueryData<AppState>(keys.state);
