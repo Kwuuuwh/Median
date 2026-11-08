@@ -399,6 +399,7 @@ export const events = {
 	policyChanged: makeEvent<PolicyChanged>("policy-changed"),
 	pricesChanged: makeEvent<PricesChanged>("prices-changed"),
 	quarantineChanged: makeEvent<QuarantineChanged>("quarantine-changed"),
+	quotesChanged: makeEvent<QuotesChanged>("quotes-changed"),
 	rang: makeEvent<Rang>("rang"),
 	settingsChanged: makeEvent<SettingsChanged>("settings-changed"),
 	tasksChanged: makeEvent<TasksChanged>("tasks-changed"),
@@ -1563,6 +1564,14 @@ export type Quote = {
 	platinum: number | null,
 	/**  The market pair the price comes from; pass it to ask the market cache to keep it fresh. */
 	pair: Pair | null,
+};
+
+/**
+ *  Emitted when the market cache's closed trades or item descriptions changed, so prices built on
+ *  them may differ; `slugs` names the items, `None` means the whole market.
+ */
+export type QuotesChanged = {
+	slugs: string[] | null,
 };
 
 /**  Emitted when one or more world watches fire. */

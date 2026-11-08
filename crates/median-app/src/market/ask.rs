@@ -1,4 +1,4 @@
-use median_core::{DAY, seconds};
+use median_core::{DESCRIBED_FOR, seconds};
 
 use crate::market::gateway::{Gateway, Priority};
 use crate::market::store::{ITEM, Store};
@@ -24,9 +24,6 @@ pub(crate) async fn lots(
     store.stamp(slug, ITEM).await.map_err(|e| e.to_string())?;
     Ok(allowed)
 }
-
-/// Seconds the market's item description is reused; a game update can add variants to an item.
-pub(crate) const DESCRIBED_FOR: i64 = 7 * DAY;
 
 /// Whether the market cache's description of the item is younger than `DESCRIBED_FOR`.
 pub(crate) async fn is_described(store: &Store, slug: &str) -> bool {

@@ -6,6 +6,7 @@ import {
   type Holdings,
   type Piece,
   type Priced,
+  type Quote,
 } from "@median/ipc";
 import type { QueryClient } from "@tanstack/react-query";
 import { keys } from "@/shared/data/keys";
@@ -39,6 +40,48 @@ export function dataReplaced(before: AppState | undefined, catalog: Catalog): bo
 export function traded(before: AppState | undefined, game: Game): boolean {
   const last = game.swaps[0];
   return last !== undefined && last.at !== before?.game.swaps[0]?.at;
+}
+
+/** Whether any of `quotes` is priced from the market pair of one of `slugs`. */
+export function quotesFrom(
+  quotes: readonly Quote[] | undefined,
+  slugs: ReadonlySet<string>,
+): boolean {
+  return quotes?.some((quote) => quote.pair !== null && slugs.has(quote.pair.slug)) ?? false;
+}
+
+/** Cached responses built on the market cache's closed trades and item descriptions. */
+const PRICED = [
+  keys.prices,
+  keys.setPrices,
+  keys.quotesAll,
+  keys.relicsAll,
+  keys.relicsOfAll,
+  keys.syndicatesAll,
+  keys.haulAll,
+  keys.roadmapAll,
+  keys.curveAll,
+] as const;
+
+/** Refetches what the changed closed trades or descriptions of `slugs` price; all of it for null. */
+function requote(client: QueryClient, slugs: readonly string[] | null): void {
+  if (slugs === null) {
+    for (const queryKey of PRICED) void client.invalidateQueries({ queryKey });
+    return;
+  }
+  const moved = new Set(slugs);
+  void client.invalidateQueries({
+    queryKey: keys.quotesAll,
+    predicate: (query) => quotesFrom(query.state.data as Quote[] | undefined, moved),
+  });
+  const held = client.getQueryData<Map<string, Priced>>(keys.prices);
+  if ([...(held?.values() ?? [])].some((row) => moved.has(row.slug))) {
+    void client.invalidateQueries({ queryKey: keys.prices });
+  }
+  const sets = client.getQueryData<Map<string, Priced>>(keys.setPrices);
+  if (slugs.some((slug) => sets?.has(slug))) {
+    void client.invalidateQueries({ queryKey: keys.setPrices });
+  }
 }
 
 function patchState(client: QueryClient, patch: Partial<AppState>): void {
@@ -115,6 +158,7 @@ export async function followEvents(client: QueryClient): Promise<void> {
     events.bookMoved.listen(() => {
       void client.invalidateQueries({ queryKey: keys.ordersAll });
     }),
+    events.quotesChanged.listen(({ payload }) => requote(client, payload.slugs)),
     events.pricesChanged.listen(({ payload }) => {
       patchPrices(client, keys.prices, payload.held, (row) => priceKey(row.item, row.variant));
       patchPrices(client, keys.setPrices, payload.sets, (row) => row.slug);

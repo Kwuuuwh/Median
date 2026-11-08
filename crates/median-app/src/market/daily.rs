@@ -3,7 +3,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use median_core::seconds;
+use median_ipc::QuotesChanged;
 use median_market::{ClosedBucket, DayFiles, day_of};
+use tauri::AppHandle;
+use tauri_specta::Event;
+use tokio::sync::Notify;
 use tokio::time::sleep;
 use tracing::{info, warn};
 
@@ -25,11 +29,34 @@ const RETRY: Duration = Duration::from_secs(5 * 60);
 /// Age, in seconds, after which an observation is deleted.
 const KEPT: i64 = 30 * DAY;
 
-pub async fn tend(store: Arc<Store>, day_files: Arc<DayFiles>) -> Result<(), String> {
+/// What one pass over the day files did.
+enum Warmed {
+    /// The market item list is not stored yet, so no day file can be read into items.
+    Unlisted,
+    /// `imported` day files were read in; `refused` when a download failed.
+    Read { imported: usize, refused: bool },
+}
+
+/// Imports the day files as they are published, waiting on `listed` while the market item list
+/// is not stored; tells the window after each pass that imported a day.
+pub async fn tend(
+    store: Arc<Store>,
+    day_files: Arc<DayFiles>,
+    listed: Arc<Notify>,
+    app: AppHandle,
+) -> Result<(), String> {
     loop {
         let again = match warm(&store, &day_files).await {
-            Ok(true) => PAUSE,
-            Ok(false) => RETRY,
+            Ok(Warmed::Unlisted) => {
+                listed.notified().await;
+                continue;
+            }
+            Ok(Warmed::Read { imported, refused }) => {
+                if imported > 0 {
+                    let _ = QuotesChanged { slugs: None }.emit(&app);
+                }
+                if refused { RETRY } else { PAUSE }
+            }
             Err(trouble) => {
                 warn!(error = %trouble, "market daily stats read failed");
                 RETRY
@@ -39,16 +66,16 @@ pub async fn tend(store: Arc<Store>, day_files: Arc<DayFiles>) -> Result<(), Str
     }
 }
 
-/// Imports up to `DAYS` day files into the market cache, skipping days imported before; returns
-/// whether every attempted download succeeded, and `false` while the item list is empty.
-async fn warm(store: &Store, day_files: &DayFiles) -> Result<bool, String> {
+/// Imports up to `DAYS` day files into the market cache, skipping days imported before.
+async fn warm(store: &Store, day_files: &DayFiles) -> Result<Warmed, String> {
     let by_id = store.slugs_by_id().await.map_err(|e| e.to_string())?;
     if by_id.is_empty() {
-        return Ok(false);
+        return Ok(Warmed::Unlisted);
     }
 
     let now = seconds();
     let mut read = 0;
+    let mut imported = 0;
     let mut refused = false;
     for back in 1..=DAYS + REACH {
         if read >= DAYS {
@@ -108,6 +135,7 @@ async fn warm(store: &Store, day_files: &DayFiles) -> Result<bool, String> {
             .map_err(|e| e.to_string())?;
 
         read += 1;
+        imported += 1;
         info!(
             date,
             items,
@@ -127,5 +155,5 @@ async fn warm(store: &Store, day_files: &DayFiles) -> Result<bool, String> {
     if forgotten > 0 {
         info!(rows = forgotten, "old market observations removed");
     }
-    Ok(!refused)
+    Ok(Warmed::Read { imported, refused })
 }

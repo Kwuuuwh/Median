@@ -6,8 +6,8 @@ use async_trait::async_trait;
 use median_core::{
     Ask, DAY, Fetch, Holder, Instant, Interest, Inventory, Kept, Need, ask_queue, seconds,
 };
-use median_ipc::{BookMoved, PricesChanged};
-use median_market::{Book, MarketError, Pass};
+use median_ipc::{BookMoved, PricesChanged, QuotesChanged};
+use median_market::{Book, ItemMeta, MarketError, Pass};
 use tauri::AppHandle;
 use tauri_specta::Event;
 use tokio::sync::Mutex as AsyncMutex;
@@ -105,6 +105,11 @@ pub struct Freshener {
     kept: Mutex<HashMap<String, Kept>>,
     flying: Mutex<HashSet<(String, Fetch)>>,
     inventory_watch: RwLock<Arc<InventoryWatch>>,
+    /// Items to describe ahead of any need: every item a relic drops, since the reward screen
+    /// shows them without warning.
+    ahead: RwLock<Arc<Vec<String>>>,
+    /// Woken once the market item list is saved or found current.
+    listed: Arc<Notify>,
 }
 
 impl Freshener {
@@ -118,6 +123,7 @@ impl Freshener {
         books: Books,
         answers: Answers,
         running: Arc<AsyncMutex<bool>>,
+        listed: Arc<Notify>,
     ) -> Result<Self, String> {
         let mut kept: HashMap<String, Kept> = HashMap::new();
         for (slug, at) in store.stamps(BOOK).await.map_err(|e| e.to_string())? {
@@ -125,6 +131,9 @@ impl Freshener {
         }
         for (slug, at) in store.stamps(STATISTICS).await.map_err(|e| e.to_string())? {
             kept.entry(slug).or_default().trades = Some(at);
+        }
+        for (slug, at) in store.stamps(ITEM).await.map_err(|e| e.to_string())? {
+            kept.entry(slug).or_default().described = Some(at);
         }
         Ok(Self {
             app,
@@ -138,6 +147,8 @@ impl Freshener {
             kept: Mutex::new(kept),
             flying: Mutex::new(HashSet::new()),
             inventory_watch: RwLock::new(Arc::default()),
+            ahead: RwLock::new(Arc::default()),
+            listed,
         })
     }
 
@@ -271,13 +282,14 @@ impl Freshener {
     async fn asks(&self) -> Vec<Ask> {
         let agent_on = *self.running.lock().await;
         let needs = self.needs.all();
+        let ahead = Arc::clone(&self.ahead.read().unwrap_or_else(PoisonError::into_inner));
         let asks = {
             let kept = self.kept();
             let known = |slug: &str| Kept {
                 stirred: self.stirred.moved(slug),
                 ..kept.get(slug).copied().unwrap_or_default()
             };
-            ask_queue(&needs, &known, agent_on, seconds())
+            ask_queue(&needs, &ahead, &known, agent_on, seconds())
         };
         let flying = self.flying();
         asks.into_iter()
@@ -296,10 +308,14 @@ impl Freshener {
         let client = self.gateway.client();
         let slug = ask.slug.as_str();
         match ask.fetch {
+            Fetch::Description => {
+                let meta = client.item(pass, slug).await?;
+                self.keep_description(slug, &meta).await;
+                return Ok(Made::Description);
+            }
             Fetch::Book if !self.described(slug).await => {
                 let meta = client.item(pass, slug).await?;
-                note(self.store.keep_item(&meta).await, slug);
-                note(self.store.stamp(slug, ITEM).await, slug);
+                self.keep_description(slug, &meta).await;
                 return Ok(Made::Description);
             }
             Fetch::Book => {
@@ -321,9 +337,28 @@ impl Freshener {
                     slug,
                 );
                 note(self.store.stamp(slug, STATISTICS).await, slug);
+                self.quotes_moved(slug);
             }
         }
         Ok(Made::Request)
+    }
+
+    /// Saves an item's description; tells the window when the item is ranked, since its prices
+    /// are read by rank from then on.
+    async fn keep_description(&self, slug: &str, meta: &ItemMeta) {
+        note(self.store.keep_item(meta).await, slug);
+        note(self.store.stamp(slug, ITEM).await, slug);
+        if meta.max_rank.is_some() {
+            self.quotes_moved(slug);
+        }
+    }
+
+    /// Tells the window that prices built on the item's closed trades or description may differ.
+    fn quotes_moved(&self, slug: &str) {
+        let _ = QuotesChanged {
+            slugs: Some(vec![slug.to_owned()]),
+        }
+        .emit(&self.app);
     }
 
     /// Records a request as made, whether or not it succeeded.
@@ -338,8 +373,8 @@ impl Freshener {
         );
     }
 
-    /// Every `DECLARE`, refreshes the item list when due and declares the inventory watch's
-    /// needs.
+    /// Every `DECLARE`, refreshes the item list when due, declares the inventory watch's needs and
+    /// reads the items to describe ahead.
     pub async fn tend(
         self: Arc<Self>,
         catalog: Arc<Catalog>,
@@ -347,6 +382,12 @@ impl Freshener {
     ) -> Result<(), String> {
         loop {
             self.list().await;
+            match drops(&catalog).await {
+                Ok(slugs) => {
+                    *self.ahead.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(slugs);
+                }
+                Err(why) => warn!(error = %why, "relic drops to describe ahead not read"),
+            }
             let held = holdings.read().inventory;
             match shown(&catalog, &self.store, &held).await {
                 Ok(watch) => {
@@ -363,10 +404,12 @@ impl Freshener {
         }
     }
 
-    /// Fetches the market item list once the stored one is older than `LIST_KEEP`.
+    /// Fetches the market item list once the stored one is older than `LIST_KEEP`; wakes
+    /// `listed` while a list is stored.
     async fn list(&self) {
         let asked = self.store.stamped("", LISTED).await.unwrap_or(None);
         if asked.is_some_and(|at| seconds() - at < LIST_KEEP) {
+            self.listed.notify_one();
             return;
         }
         let listed = self
@@ -380,6 +423,7 @@ impl Freshener {
                 Ok(count) => {
                     info!(items = count, "market item list read");
                     let _ = self.store.stamp("", LISTED).await;
+                    self.listed.notify_one();
                 }
                 Err(e) => warn!(error = %e, "market item list not saved"),
             },
@@ -432,6 +476,24 @@ fn note<T, E: std::fmt::Display>(written: Result<T, E>, slug: &str) {
     }
 }
 
+/// Market slugs of every item a relic can drop, sorted.
+async fn drops(catalog: &Catalog) -> Result<Vec<String>, String> {
+    catalog
+        .read(|connection| {
+            let rewards: Vec<String> = catalog::reward_names(connection, "en")?
+                .into_iter()
+                .map(|(item, _)| item)
+                .collect();
+            let slugs: BTreeSet<String> = catalog::slugs(connection, &rewards)?
+                .into_iter()
+                .map(|(_, slug)| slug)
+                .collect();
+            Ok(slugs.into_iter().collect())
+        })
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Every holding that has a market price, and every set the holdings form.
 async fn shown(
     catalog: &Catalog,
@@ -481,7 +543,7 @@ enum Made {
 /// book leaves the book due.
 fn record(kept: &mut Kept, fetch: Fetch, made: Made, now: Instant) {
     match (fetch, made) {
-        (_, Made::Description) => {}
+        (Fetch::Description, _) | (_, Made::Description) => kept.described = Some(now),
         (Fetch::Book, Made::Request) => kept.book = Some(kept.book.map_or(now, |at| at.max(now))),
         (Fetch::Trades, Made::Request) => kept.trades = Some(now),
     }
@@ -496,8 +558,17 @@ mod tests {
         let mut kept = Kept::default();
         record(&mut kept, Fetch::Book, Made::Description, 100);
         assert_eq!(kept.book, None);
+        assert_eq!(kept.described, Some(100));
         record(&mut kept, Fetch::Book, Made::Request, 101);
         assert_eq!(kept.book, Some(101));
+    }
+
+    #[test]
+    fn a_description_asked_ahead_is_recorded_even_when_it_failed() {
+        let mut kept = Kept::default();
+        record(&mut kept, Fetch::Description, Made::Request, 100);
+        assert_eq!(kept.described, Some(100));
+        assert_eq!((kept.book, kept.trades), (None, None));
     }
 
     #[test]

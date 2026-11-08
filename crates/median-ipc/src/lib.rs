@@ -20,6 +20,7 @@ pub use dto::{
 pub use events::{
     AccountChanged, AgentChanged, BookMoved, CatalogChanged, CollectorChanged, GameChanged,
     InventoryChanged, MarketChanged, MembershipChanged, PolicyChanged, PricesChanged,
-    QuarantineChanged, Rang, SettingsChanged, TasksChanged, UpdateProgressed, WorldChanged,
+    QuarantineChanged, QuotesChanged, Rang, SettingsChanged, TasksChanged, UpdateProgressed,
+    WorldChanged,
 };
 pub use units::{permille, tenths};

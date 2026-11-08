@@ -9,7 +9,7 @@ use median_core::{
 use median_engine::{Engine, Input, Ports};
 use median_market::{Budget, Client as MarketClient, DayFiles, Gate, Host};
 use tauri::{App, Manager};
-use tokio::sync::mpsc;
+use tokio::sync::{Notify, mpsc};
 use tracing::{debug, error, info, warn};
 
 use crate::account;
@@ -313,6 +313,7 @@ pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let sheet = Arc::new(rivens::Sheet::default());
     app.manage(Arc::clone(&sheet));
     let fresh = Arc::new(market::Fresh::default());
+    let listed = Arc::new(Notify::new());
 
     let freshener = Arc::new(tauri::async_runtime::block_on(market::Freshener::new(
         app.handle().clone(),
@@ -323,6 +324,7 @@ pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         books.clone(),
         answers.clone(),
         Arc::clone(&running),
+        Arc::clone(&listed),
     ))?);
     app.manage(Arc::clone(&freshener));
 
@@ -331,7 +333,16 @@ pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     tasks::spawn("days", tx.clone(), Restart::After(RESTART), {
         let market_cache = Arc::clone(&market_cache);
         let day_files = Arc::clone(&day_files);
-        move || market::tend_days(Arc::clone(&market_cache), Arc::clone(&day_files))
+        let listed = Arc::clone(&listed);
+        let handle = app.handle().clone();
+        move || {
+            market::tend_days(
+                Arc::clone(&market_cache),
+                Arc::clone(&day_files),
+                Arc::clone(&listed),
+                handle.clone(),
+            )
+        }
     });
 
     tasks::spawn("heat", tx.clone(), Restart::After(RESTART), {

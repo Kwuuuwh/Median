@@ -89,6 +89,13 @@ pub struct PricesChanged {
     pub sets: Vec<Priced>,
 }
 
+/// Emitted when the market cache's closed trades or item descriptions changed, so prices built on
+/// them may differ; `slugs` names the items, `None` means the whole market.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct QuotesChanged {
+    pub slugs: Option<Vec<String>>,
+}
+
 /// Emitted when a fresh order book arrives for a pair the account has an open order on.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct BookMoved {

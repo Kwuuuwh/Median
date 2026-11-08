@@ -1,7 +1,8 @@
 use median_ipc::{
     AccountChanged, AgentChanged, BookMoved, CatalogChanged, CollectorChanged, GameChanged,
     InventoryChanged, MarketChanged, MembershipChanged, PolicyChanged, PricesChanged,
-    QuarantineChanged, Rang, SettingsChanged, TasksChanged, UpdateProgressed, WorldChanged,
+    QuarantineChanged, QuotesChanged, Rang, SettingsChanged, TasksChanged, UpdateProgressed,
+    WorldChanged,
 };
 
 use crate::commands;
@@ -102,6 +103,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             MarketChanged,
             MembershipChanged,
             PricesChanged,
+            QuotesChanged,
             BookMoved,
             PolicyChanged,
             AgentChanged,

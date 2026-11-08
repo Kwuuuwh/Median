@@ -104,7 +104,7 @@ pub use roadmap::{
     buildable, judge, startable, supplied, walk, walk_forge, walk_plan,
 };
 pub use schedule::{
-    Ask, FLOOR, Fetch, Holder, Interest, Kept, Need, TRADES_KEEP, next as next_ask,
+    Ask, DESCRIBED_FOR, FLOOR, Fetch, Holder, Interest, Kept, Need, TRADES_KEEP, next as next_ask,
     queue as ask_queue,
 };
 pub use scorecard::{Burned, Scorecard, burned, per_exchange};

@@ -9,6 +9,9 @@ pub const FLOOR: Instant = 20;
 /// Refresh interval of an item's closed trades, in seconds.
 pub const TRADES_KEEP: Instant = DAY;
 
+/// Seconds an item's market description is reused; a game update can add variants to an item.
+pub const DESCRIBED_FOR: Instant = 7 * DAY;
+
 /// Age assumed for an item that was never requested, in seconds.
 const NEVER: f64 = 1.0e9;
 
@@ -103,6 +106,8 @@ pub struct Kept {
     /// Whether the order stream received an order for the item since its order book was
     /// requested.
     pub stirred: bool,
+    /// When its description was last requested, whether or not a response arrived.
+    pub described: Option<Instant>,
 }
 
 /// Which market data of an item to request.
@@ -112,10 +117,12 @@ pub enum Fetch {
     Book,
     /// Its closed trades.
     Trades,
+    /// Its description: variants and lot rule.
+    Description,
 }
 
 /// One market request to make; `overdue` is the data age divided by its maximum age, due at 1.0
-/// or more.
+/// or more. A description asked ahead of any need has `keeps` `Instant::MAX` and `overdue` 1.0.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ask {
     pub slug: String,
@@ -161,9 +168,11 @@ fn overdue(asked: Option<Instant>, keeps: Instant, stirred: bool, now: Instant) 
 }
 
 /// Every request that can be made now, in priority order: due requests the user is waiting for,
-/// then due requests by strictness with trades before order books, then the most overdue.
+/// then due requests by strictness with trades before order books, then descriptions of `ahead`
+/// items no need covers and none younger than `DESCRIBED_FOR`, then the most overdue.
 pub fn queue(
     needs: &[Need],
+    ahead: &[String],
     kept: &dyn Fn(&str) -> Kept,
     agent_on: bool,
     now: Instant,
@@ -188,6 +197,21 @@ pub fn queue(
     }
 
     let mut asks: Vec<Ask> = Vec::new();
+    for slug in ahead {
+        if items.contains_key(slug.as_str()) {
+            continue;
+        }
+        let described = kept(slug).described;
+        if described.is_none_or(|at| now.saturating_sub(at) >= DESCRIBED_FOR) {
+            asks.push(Ask {
+                slug: slug.clone(),
+                fetch: Fetch::Description,
+                keeps: Instant::MAX,
+                overdue: 1.0,
+                waiting: false,
+            });
+        }
+    }
     for (slug, wanted) in items {
         let known = kept(slug);
         if let Some(overdue) = overdue(known.book, wanted.keeps, known.stirred, now) {
@@ -232,11 +256,12 @@ pub fn queue(
 /// Highest-priority request from `queue`; `None` when no item can be requested yet.
 pub fn next(
     needs: &[Need],
+    ahead: &[String],
     kept: &dyn Fn(&str) -> Kept,
     agent_on: bool,
     now: Instant,
 ) -> Option<Ask> {
-    queue(needs, kept, agent_on, now).into_iter().next()
+    queue(needs, ahead, kept, agent_on, now).into_iter().next()
 }
 
 #[cfg(test)]
@@ -256,6 +281,7 @@ mod tests {
             book: Some(at),
             trades: Some(at),
             stirred: false,
+            described: Some(at),
         }
     }
 
@@ -267,6 +293,7 @@ mod tests {
     fn an_item_asked_a_moment_ago_is_left_alone_whoever_wants_it() {
         let asks = queue(
             &[need("primed_flow", Interest::Waiting)],
+            &[],
             &asked(1_000),
             true,
             1_010,
@@ -289,6 +316,7 @@ mod tests {
                 need("held", Interest::Held),
                 need("card", Interest::Waiting),
             ],
+            &[],
             &kept,
             true,
             10_000,
@@ -305,10 +333,12 @@ mod tests {
                 need("watched", Interest::Watched),
                 need("committed", Interest::Committed),
             ],
+            &[],
             &|slug: &str| Kept {
                 book: (slug == "committed").then_some(9_000),
                 trades: Some(10_000),
                 stirred: false,
+                described: None,
             },
             true,
             10_000,
@@ -321,6 +351,7 @@ mod tests {
     fn overdue_is_the_age_over_how_old_the_price_may_grow() {
         let asks = queue(
             &[need("shown", Interest::Shown), need("held", Interest::Held)],
+            &[],
             &asked(10_000 - 600),
             false,
             10_000,
@@ -344,12 +375,14 @@ mod tests {
             }),
             trades: Some(10_000),
             stirred: false,
+            described: None,
         };
         let asks = queue(
             &[
                 need("held", Interest::Held),
                 need("watched", Interest::Watched),
             ],
+            &[],
             &kept,
             false,
             10_000,
@@ -367,6 +400,7 @@ mod tests {
                 _ => 10_000 - 3_600,
             }),
             stirred: false,
+            described: None,
         };
         let asks = queue(
             &[
@@ -374,6 +408,7 @@ mod tests {
                 need("stale", Interest::Watched),
                 need("held", Interest::Held),
             ],
+            &[],
             &kept,
             true,
             10_000,
@@ -394,6 +429,7 @@ mod tests {
     fn something_is_always_asked_about_while_anything_is_wanted() {
         let asks = queue(
             &[need("held", Interest::Held)],
+            &[],
             &asked(10_000 - 60),
             false,
             10_000,
@@ -409,6 +445,7 @@ mod tests {
         maxed.variant = "mod_rank=10".into();
         let asks = queue(
             &[need("primed_flow", Interest::Held), maxed],
+            &[],
             &asked(10_000 - 240),
             false,
             10_000,
@@ -423,10 +460,12 @@ mod tests {
     fn the_flow_carrying_an_order_makes_the_book_due() {
         let asks = queue(
             &[need("primed_flow", Interest::Held)],
+            &[],
             &|_: &str| Kept {
                 book: Some(10_000 - 60),
                 trades: Some(10_000),
                 stirred: true,
+                described: None,
             },
             false,
             10_000,
@@ -448,10 +487,12 @@ mod tests {
                 need("held", Interest::Held),
                 need("watched", Interest::Watched),
             ],
+            &[],
             &|_: &str| Kept {
                 book: Some(10_000),
                 trades: None,
                 stirred: false,
+                described: None,
             },
             true,
             10_000,
@@ -464,5 +505,59 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["watched"]
         );
+    }
+
+    #[test]
+    fn descriptions_ahead_go_after_due_data_and_before_early_refreshes() {
+        let kept = |slug: &str| Kept {
+            book: Some(match slug {
+                "shown" => 10_000 - 60,
+                _ => 0,
+            }),
+            ..Kept::default()
+        };
+        let asks = queue(
+            &[need("shown", Interest::Shown), need("held", Interest::Held)],
+            &["reward".to_owned()],
+            &kept,
+            false,
+            10_000,
+        );
+
+        assert_eq!(slugs(&asks), vec!["held", "reward", "shown"]);
+        assert_eq!(asks[1].fetch, Fetch::Description);
+    }
+
+    #[test]
+    fn an_item_is_described_ahead_again_only_once_its_description_is_old() {
+        let kept = |slug: &str| Kept {
+            described: Some(match slug {
+                "recent" => 10_000 - DESCRIBED_FOR + 60,
+                _ => 10_000 - DESCRIBED_FOR,
+            }),
+            ..Kept::default()
+        };
+        let asks = queue(
+            &[],
+            &["old".to_owned(), "recent".to_owned()],
+            &kept,
+            false,
+            10_000,
+        );
+
+        assert_eq!(slugs(&asks), vec!["old"]);
+    }
+
+    #[test]
+    fn an_item_someone_needs_is_not_described_ahead() {
+        let asks = queue(
+            &[need("reward", Interest::Held)],
+            &["reward".to_owned()],
+            &|_: &str| Kept::default(),
+            false,
+            10_000,
+        );
+
+        assert!(asks.iter().all(|ask| ask.fetch != Fetch::Description));
     }
 }
