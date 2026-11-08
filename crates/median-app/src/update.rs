@@ -63,6 +63,19 @@ fn release_of(version: &str) -> Option<(u32, UpdateChannel)> {
     }
 }
 
+/// Revision of a newer release found on `channel`, `None` when its version does not read as one;
+/// an error only for a version that reads as another channel's release.
+fn offered(version: &str, channel: UpdateChannel) -> Result<Option<u32>, String> {
+    match release_of(version) {
+        Some((_, made_for)) if made_for != channel => Err(format!(
+            "release {version} is a {} release, not a {} one",
+            made_for.as_code(),
+            channel.as_code()
+        )),
+        read => Ok(read.map(|(revision, _)| revision)),
+    }
+}
+
 /// Checks `chosen`, or the build's own channel when `None`, for a release newer than this build
 /// and keeps it for `install`; `None` when there is none.
 pub async fn check(
@@ -95,19 +108,18 @@ pub async fn check(
         })?;
     let release = match &found {
         Some(update) => {
-            let revision = match release_of(&update.version) {
-                Some((revision, made_for)) if made_for == channel => revision,
-                _ => {
-                    return Err(format!(
-                        "release version {} is not a {} release",
-                        update.version,
-                        channel.as_code()
-                    ));
-                }
-            };
-            info!(channel = channel.as_code(), revision, "update found");
+            let revision = offered(&update.version, channel).inspect_err(|why| {
+                warn!(channel = channel.as_code(), error = %why, "update refused");
+            })?;
+            info!(
+                channel = channel.as_code(),
+                version = %update.version,
+                revision,
+                "update found"
+            );
             Some(Release {
                 revision,
+                version: update.version.clone(),
                 channel: to_release_channel(channel),
                 changes: update
                     .body
@@ -211,6 +223,18 @@ mod tests {
         assert_eq!(release_of("0.0.3-beta"), None);
         assert_eq!(release_of("1.0.3"), None);
         assert_eq!(release_of("0.0"), None);
+    }
+
+    #[test]
+    fn a_newer_release_is_offered_whatever_its_version_says_unless_it_names_another_channel() {
+        assert_eq!(
+            offered("0.0.17-preview", UpdateChannel::Preview),
+            Ok(Some(17))
+        );
+        assert_eq!(offered("1.2.0", UpdateChannel::Preview), Ok(None));
+        assert_eq!(offered("0.0.18-beta", UpdateChannel::Stable), Ok(None));
+        assert!(offered("0.0.17", UpdateChannel::Preview).is_err());
+        assert!(offered("0.0.17-preview", UpdateChannel::Stable).is_err());
     }
 
     #[test]

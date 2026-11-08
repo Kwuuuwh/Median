@@ -21,7 +21,7 @@ import { useGameData } from "@/shared/data/catalog";
 import { type Translate, useT } from "@/shared/i18n";
 import { dataProgress } from "@/shared/lib/data-progress";
 import { formatDate } from "@/shared/lib/format";
-import { revisionText } from "@/shared/lib/revision";
+import { releaseName, revisionText } from "@/shared/lib/revision";
 import { Button } from "@/shared/ui/button";
 import { Segmented } from "@/shared/ui/segmented";
 import { SettingRow, SettingSection } from "./SettingRow";
@@ -179,10 +179,10 @@ function status(t: Translate, step: UpdateStep, chosen: ReleaseChannel, build: B
         ? t("update-latest")
         : t("update-waiting", { channel: chosen, revision: `r${build.revision}` });
     case "found":
-      return t("update-found", { revision: `r${step.release.revision}` });
+      return t("update-found", { revision: releaseName(step.release) });
     case "downloading": {
       const share = downloadedShare(step);
-      const revision = `r${step.release.revision}`;
+      const revision = releaseName(step.release);
       return share === null
         ? t("update-downloading", { revision })
         : t("update-downloading-share", { revision, percent: Math.floor(share * 100) });

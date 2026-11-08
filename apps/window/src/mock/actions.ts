@@ -423,6 +423,7 @@ export function standActions(snapshot: Snapshot): Answers {
                 ? null
                 : {
                     revision: 126,
+                    version: "0.0.126-preview",
                     channel: "preview",
                     changes: [
                       "feat(app): sign in to warframe.market and keep the token",

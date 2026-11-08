@@ -949,8 +949,10 @@ pub struct Build {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Release {
-    /// Revision of the release.
-    pub revision: u32,
+    /// Revision of the release; `None` when its version does not read as one.
+    pub revision: Option<u32>,
+    /// Version as the release announces it.
+    pub version: String,
     /// Channel the release came from.
     pub channel: ReleaseChannel,
     /// What changed in the release, one change per entry.

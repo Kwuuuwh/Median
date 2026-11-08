@@ -9,6 +9,7 @@ import {
 import { ChangeList } from "@/features/update/ui/ChangeList";
 import { useLocale } from "@/shared/data/app-state";
 import { useT } from "@/shared/i18n";
+import { releaseName } from "@/shared/lib/revision";
 import { Button } from "@/shared/ui/button";
 import { GateBar } from "./GateBar";
 
@@ -41,7 +42,7 @@ export function UpdateGate({ onSettled }: { onSettled: () => void }) {
       return (
         <div className="flex min-h-0 flex-1 flex-col gap-3 py-4">
           <div className="font-display font-semibold text-heading">
-            {t("update-found", { revision: `r${step.release.revision}` })}
+            {t("update-found", { revision: releaseName(step.release) })}
           </div>
           <ChangeList changes={step.release.changes} className="min-h-0 flex-1" />
           <div className="flex justify-end gap-2">
@@ -57,7 +58,7 @@ export function UpdateGate({ onSettled }: { onSettled: () => void }) {
     case "downloading": {
       const share = downloadedShare(step);
       return (
-        <Centered title={t("update-downloading", { revision: `r${step.release.revision}` })}>
+        <Centered title={t("update-downloading", { revision: releaseName(step.release) })}>
           <div className="text-muted tabular-nums">
             {step.total === null
               ? formatBytes(locale, step.downloaded)

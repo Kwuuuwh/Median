@@ -2,7 +2,13 @@ import type { Release } from "@median/ipc";
 import { describe, expect, it } from "vitest";
 import { downloadedShare, progressed } from "./updater";
 
-const release: Release = { revision: 120, channel: "stable", changes: [], published: null };
+const release: Release = {
+  revision: 120,
+  version: "0.0.120",
+  channel: "stable",
+  changes: [],
+  published: null,
+};
 
 describe("progressed", () => {
   it("keeps downloading until the whole download is in", () => {

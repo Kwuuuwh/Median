@@ -13,8 +13,10 @@ export const commands = {
 	getBuild: () => __TAURI_INVOKE<Build>("get_build"),
 	/**  Checks the chosen release channel for a release to install; `None` when there is none. */
 	checkUpdate: () => typedError<{
-	/**  Revision of the release. */
-	revision: number,
+	/**  Revision of the release; `None` when its version does not read as one. */
+	revision: number | null,
+	/**  Version as the release announces it. */
+	version: string,
 	/**  Channel the release came from. */
 	channel: ReleaseChannel,
 	/**  What changed in the release, one change per entry. */
@@ -1632,8 +1634,10 @@ export type Recognition =
 
 /**  A release the updater found to install, wire form. */
 export type Release = {
-	/**  Revision of the release. */
-	revision: number,
+	/**  Revision of the release; `None` when its version does not read as one. */
+	revision: number | null,
+	/**  Version as the release announces it. */
+	version: string,
 	/**  Channel the release came from. */
 	channel: ReleaseChannel,
 	/**  What changed in the release, one change per entry. */
