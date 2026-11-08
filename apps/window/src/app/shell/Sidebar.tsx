@@ -5,7 +5,7 @@ import { useBuild } from "@/shared/data/app-state";
 import { useT } from "@/shared/i18n";
 import { cn } from "@/shared/lib/cn";
 import { Tooltip } from "@/shared/ui/tooltip";
-import { NAV } from "./nav";
+import { NAV, shows } from "./nav";
 
 const COLLAPSED_KEY = "median.sidebar.collapsed";
 
@@ -29,7 +29,7 @@ function writeCollapsed(collapsed: boolean): void {
 export function Sidebar() {
   const t = useT();
   const [collapsed, setCollapsed] = useState(readCollapsed);
-  const dev = useBuild()?.channel === "dev";
+  const channel = useBuild()?.channel;
 
   function toggle(): void {
     setCollapsed(!collapsed);
@@ -56,7 +56,7 @@ export function Sidebar() {
             </div>
             <ul className="space-y-0.5">
               {group.entries
-                .filter((entry) => dev || !entry.dev)
+                .filter((entry) => shows(entry, channel))
                 .map((entry) => (
                   <li key={entry.to}>
                     <NavLink
