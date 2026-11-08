@@ -22,6 +22,7 @@ debug-storybook.log
 /.agents
 /.claude
 CLAUDE.md
+/.serena
 
 # Collector build output
 /apps/collector/dist
