@@ -90,6 +90,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::get_scorecard,
             commands::set_policy,
             commands::set_alert,
+            commands::play_chime,
             commands::set_watch,
             commands::get_swaps,
             commands::set_agent,

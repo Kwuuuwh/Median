@@ -332,6 +332,7 @@ figures-group = { $group ->
   }
 whisper-writes = { $player } is writing
 alert-volume = Volume
+alert-listen = Play
 
 deal-record-buy = Bought
 deal-record-sell = Sold

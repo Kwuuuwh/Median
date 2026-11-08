@@ -333,6 +333,7 @@ figures-group = { $group ->
   }
 whisper-writes = Пишет { $player }
 alert-volume = Громкость
+alert-listen = Прослушать
 
 deal-record-buy = Купил
 deal-record-sell = Продал

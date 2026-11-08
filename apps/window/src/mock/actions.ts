@@ -458,6 +458,7 @@ export function standActions(snapshot: Snapshot): Answers {
     setLocale: (locale) => settings({ locale }),
     setAccent: (accent) => settings({ accent }),
     setAlert: (alert) => settings({ alert }),
+    playChime: () => undefined,
     setStatus: (status) => membership({ status }),
     setStatusAuto: (auto) => membership({ auto }),
     signIn: () => membership({ standing: "in", name: "Tenno", status: "invisible" }),

@@ -1280,6 +1280,13 @@ pub async fn set_alert(
         .map_err(|e| e.to_string())
 }
 
+/// Plays the whisper chime once at `volume` percent, so the person can hear the level.
+#[tauri::command]
+#[specta::specta]
+pub fn play_chime(volume: u8) {
+    crate::sound::chime(volume);
+}
+
 /// Adds (`on`) or removes a world state watch; the new state comes back via `SettingsChanged`.
 #[tauri::command]
 #[specta::specta]

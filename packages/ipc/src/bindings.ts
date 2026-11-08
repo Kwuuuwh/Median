@@ -369,6 +369,8 @@ export const commands = {
 	setPolicy: (policy: Policy) => typedError<null, string>(__TAURI_INVOKE("set_policy", { policy })),
 	/**  Sets the sound alert settings for game log events; the new state comes back in `AppState`. */
 	setAlert: (alert: Alert) => typedError<null, string>(__TAURI_INVOKE("set_alert", { alert })),
+	/**  Plays the whisper chime once at `volume` percent, so the person can hear the level. */
+	playChime: (volume: number) => __TAURI_INVOKE<void>("play_chime", { volume }),
 	/**  Adds (`on`) or removes a world state watch; the new state comes back via `SettingsChanged`. */
 	setWatch: (watch: Watch, on: boolean) => typedError<null, string>(__TAURI_INVOKE("set_watch", { watch, on })),
 	/**

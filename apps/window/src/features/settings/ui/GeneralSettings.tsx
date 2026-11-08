@@ -1,13 +1,15 @@
 import { LOCALES, translate } from "@median/i18n";
 import { type AppState, commands, send } from "@median/ipc";
+import { Volume2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useT } from "@/shared/i18n";
+import { Button } from "@/shared/ui/button";
 import { Segmented } from "@/shared/ui/segmented";
 import { Slider } from "@/shared/ui/slider";
 import { Switch } from "@/shared/ui/switch";
 import { SettingRow, SettingSection } from "./SettingRow";
 
-/** Interface language, and the sound of in-game whispers with its volume. */
+/** Interface language, and the sound of in-game whispers with its volume and a listen button. */
 export function GeneralSettings({ state }: { state: AppState }) {
   const t = useT();
   const { alert } = state;
@@ -51,6 +53,10 @@ export function GeneralSettings({ state }: { state: AppState }) {
             onValueCommit={([next]) => send(commands.setAlert({ ...alert, volume: next }))}
           />
           <span className="w-10 text-right text-muted text-small tabular-nums">{volume}%</span>
+          <Button size="sm" disabled={volume === 0} onClick={() => void commands.playChime(volume)}>
+            <Volume2 />
+            {t("alert-listen")}
+          </Button>
         </SettingRow>
       </SettingSection>
     </>

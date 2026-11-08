@@ -57,6 +57,7 @@ export type MessageId =
   | "alarms-none"
   | "alarms-title"
   | "alarms-watches"
+  | "alert-listen"
   | "alert-volume"
   | "auction-band"
   | "auction-bids-only"
