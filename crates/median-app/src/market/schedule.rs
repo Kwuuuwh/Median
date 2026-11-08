@@ -292,7 +292,7 @@ impl Freshener {
 
     /// Makes the one market request for `ask`; a book request for an item without a current
     /// description fetches the description instead.
-    async fn fetch(&self, ask: &Ask, pass: Pass) -> Result<(), MarketError> {
+    async fn fetch(&self, ask: &Ask, pass: Pass) -> Result<Made, MarketError> {
         let client = self.gateway.client();
         let slug = ask.slug.as_str();
         match ask.fetch {
@@ -300,6 +300,7 @@ impl Freshener {
                 let meta = client.item(pass, slug).await?;
                 note(self.store.keep_item(&meta).await, slug);
                 note(self.store.stamp(slug, ITEM).await, slug);
+                return Ok(Made::Description);
             }
             Fetch::Book => {
                 let book = client.book(pass, slug).await?;
@@ -322,19 +323,19 @@ impl Freshener {
                 note(self.store.stamp(slug, STATISTICS).await, slug);
             }
         }
-        Ok(())
+        Ok(Made::Request)
     }
 
     /// Records a request as made, whether or not it succeeded.
-    fn asked(&self, ask: &Ask) {
-        let now = seconds();
+    fn asked(&self, ask: &Ask, made: Made) {
         self.flying().remove(&(ask.slug.clone(), ask.fetch));
         let mut kept = self.kept();
-        let entry = kept.entry(ask.slug.clone()).or_default();
-        match ask.fetch {
-            Fetch::Book => entry.book = Some(entry.book.map_or(now, |at| at.max(now))),
-            Fetch::Trades => entry.trades = Some(now),
-        }
+        record(
+            kept.entry(ask.slug.clone()).or_default(),
+            ask.fetch,
+            made,
+            seconds(),
+        );
     }
 
     /// Every `DECLARE`, refreshes the item list when due and declares the inventory watch's
@@ -403,9 +404,9 @@ impl Filler for Freshener {
 
     async fn run(&self, ask: Ask, pass: Pass) {
         let outcome = self.fetch(&ask, pass).await;
-        self.asked(&ask);
+        self.asked(&ask, outcome.as_ref().map_or(Made::Request, |made| *made));
         match outcome {
-            Ok(()) => {}
+            Ok(_) => {}
             Err(trouble) if self.gateway.client().gate().failing_since().is_some() => {
                 debug!(slug = ask.slug, error = %trouble, "market answer unusable");
             }
@@ -467,9 +468,47 @@ fn inventory_needs(watch: &InventoryWatch) -> Vec<Need> {
         .collect()
 }
 
+/// What one market request was spent on.
+#[derive(Debug, Clone, Copy)]
+enum Made {
+    /// The item's description, fetched in place of its book.
+    Description,
+    /// The request asked for, whether or not it succeeded.
+    Request,
+}
+
+/// Marks `fetch` of an item as asked at `now` in `kept`; a description fetched in place of the
+/// book leaves the book due.
+fn record(kept: &mut Kept, fetch: Fetch, made: Made, now: Instant) {
+    match (fetch, made) {
+        (_, Made::Description) => {}
+        (Fetch::Book, Made::Request) => kept.book = Some(kept.book.map_or(now, |at| at.max(now))),
+        (Fetch::Trades, Made::Request) => kept.trades = Some(now),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_description_in_place_of_a_book_leaves_the_book_due() {
+        let mut kept = Kept::default();
+        record(&mut kept, Fetch::Book, Made::Description, 100);
+        assert_eq!(kept.book, None);
+        record(&mut kept, Fetch::Book, Made::Request, 101);
+        assert_eq!(kept.book, Some(101));
+    }
+
+    #[test]
+    fn a_request_is_recorded_whatever_it_brought() {
+        let mut kept = Kept::default();
+        record(&mut kept, Fetch::Trades, Made::Request, 100);
+        assert_eq!(kept.trades, Some(100));
+        record(&mut kept, Fetch::Book, Made::Request, 90);
+        record(&mut kept, Fetch::Book, Made::Request, 80);
+        assert_eq!(kept.book, Some(90));
+    }
 
     #[tokio::test]
     async fn answers_keep_the_latest_of_each_item_in_the_order_they_first_came() {
