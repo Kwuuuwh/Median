@@ -1,0 +1,48 @@
+name: announce
+
+# Announces an earlier release to its channel again, without a build, optionally as required.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release to announce, such as r18-preview or r18
+        required: true
+        type: string
+      required:
+        description: Installed builds must take it before going on
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: announce
+  cancel-in-progress: false
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ inputs.tag }}
+      REQUIRED: ${{ inputs.required }}
+    steps:
+      - name: Announce ${{ inputs.tag }}
+        run: |
+          if ! [[ "$TAG" =~ ^r[0-9]+(-preview)?$ ]]; then
+            echo "::error::$TAG is not a release tag such as r18 or r18-preview"
+            exit 1
+          fi
+          case "$TAG" in
+            *-preview) channel=preview ;;
+            *) channel=stable ;;
+          esac
+          if ! gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir earlier; then
+            echo "::error::$TAG carries no announcement; only releases made after it was added do"
+            exit 1
+          fi
+          jq --argjson required "$REQUIRED" '.required = $required' earlier/latest.json > latest.json
+          gh release upload "updater-$channel" latest.json --clobber --repo "$GITHUB_REPOSITORY"
+          echo "$TAG announced to $channel, required: $REQUIRED"
