@@ -45,17 +45,26 @@ fn endpoint(source: &str, channel: UpdateChannel) -> Result<Url, String> {
     Url::parse(&source.replace("{channel}", channel.as_code())).map_err(|e| e.to_string())
 }
 
-/// Revision of a release from its Tauri version, `0.0.<revision>`.
-fn revision_of(version: &str) -> Option<u32> {
-    let mut parts = version.trim_start_matches('v').split('.');
+/// Revision and channel of a release from its Tauri version: `0.0.<revision>` for stable,
+/// `0.0.<revision>-preview` for preview.
+fn release_of(version: &str) -> Option<(u32, UpdateChannel)> {
+    let version = version.trim_start_matches('v');
+    let (number, channel) = match version.split_once('-') {
+        Some((number, label)) => (number, UpdateChannel::parse(label)?),
+        None => (version, UpdateChannel::Stable),
+    };
+    if channel == UpdateChannel::Stable && number != version {
+        return None;
+    }
+    let mut parts = number.split('.');
     match (parts.next(), parts.next(), parts.next(), parts.next()) {
-        (Some("0"), Some("0"), Some(revision), None) => revision.parse().ok(),
+        (Some("0"), Some("0"), Some(revision), None) => Some((revision.parse().ok()?, channel)),
         _ => None,
     }
 }
 
-/// Checks `chosen`, or the build's own channel when `None`, for a release to install and keeps
-/// it for `install`; `None` when there is none.
+/// Checks `chosen`, or the build's own channel when `None`, for a release newer than this build
+/// and keeps it for `install`; `None` when there is none.
 pub async fn check(
     app: &AppHandle,
     chosen: Option<UpdateChannel>,
@@ -66,7 +75,7 @@ pub async fn check(
     let channel = chosen.unwrap_or(own);
 
     let stream = app.state::<Stream>().inner().clone();
-    let mut builder = app
+    let builder = app
         .updater_builder()
         .endpoints(vec![endpoint(SOURCE, channel)?])
         .map_err(|e| e.to_string())?
@@ -75,11 +84,6 @@ pub async fn check(
             stream.ask(Ask::Status(Status::Invisible));
             std::thread::sleep(window::PARTING);
         });
-    // Another channel's release is taken whatever its revision.
-    if channel != own {
-        builder = builder.version_comparator(|_, _| true);
-    }
-
     let found = builder
         .build()
         .map_err(|e| e.to_string())?
@@ -91,9 +95,16 @@ pub async fn check(
         })?;
     let release = match &found {
         Some(update) => {
-            let revision = revision_of(&update.version).ok_or_else(|| {
-                format!("release version {} is not 0.0.<revision>", update.version)
-            })?;
+            let revision = match release_of(&update.version) {
+                Some((revision, made_for)) if made_for == channel => revision,
+                _ => {
+                    return Err(format!(
+                        "release version {} is not a {} release",
+                        update.version,
+                        channel.as_code()
+                    ));
+                }
+            };
             info!(channel = channel.as_code(), revision, "update found");
             Some(Release {
                 revision,
@@ -189,12 +200,25 @@ mod tests {
     }
 
     #[test]
-    fn a_revision_is_read_only_from_a_zero_zero_version() {
-        assert_eq!(revision_of("0.0.8217"), Some(8217));
-        assert_eq!(revision_of("v0.0.12"), Some(12));
-        assert_eq!(revision_of("1.0.3"), None);
-        assert_eq!(revision_of("0.0.3-beta"), None);
-        assert_eq!(revision_of("0.0"), None);
+    fn a_release_is_read_from_a_zero_zero_version_with_its_channel() {
+        assert_eq!(release_of("0.0.8217"), Some((8217, UpdateChannel::Stable)));
+        assert_eq!(release_of("v0.0.12"), Some((12, UpdateChannel::Stable)));
+        assert_eq!(
+            release_of("0.0.12-preview"),
+            Some((12, UpdateChannel::Preview))
+        );
+        assert_eq!(release_of("0.0.3-stable"), None);
+        assert_eq!(release_of("0.0.3-beta"), None);
+        assert_eq!(release_of("1.0.3"), None);
+        assert_eq!(release_of("0.0"), None);
+    }
+
+    #[test]
+    fn a_preview_comes_before_the_stable_of_its_revision_and_after_the_one_before() {
+        let version = |text: &str| semver::Version::parse(text).unwrap();
+        assert!(version("0.0.5-preview") < version("0.0.5"));
+        assert!(version("0.0.5") < version("0.0.6-preview"));
+        assert!(version("0.0.5-preview") < version("0.0.6-preview"));
     }
 
     #[test]

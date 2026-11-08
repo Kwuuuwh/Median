@@ -6,11 +6,12 @@ import {
   type ReleaseChannel,
   send,
 } from "@median/ipc";
+import { useEffect, useRef } from "react";
 import {
   checkUpdate,
   downloadedShare,
-  forgetUpdate,
   installUpdate,
+  recheckUpdate,
   type UpdateStep,
   useUpdateStep,
 } from "@/features/update/model/updater";
@@ -28,34 +29,54 @@ import { SettingRow, SettingSection } from "./SettingRow";
 /** Channels a released build can take updates from. */
 const CHANNELS: readonly ReleaseChannel[] = ["stable", "preview"];
 
-/** The settings' updates group: build, channel, new release, game data and changes. */
+/** The settings' updates group: build with its update, channel, game data and changes. */
 export function UpdateSettings({ state }: { state: AppState }) {
+  const build = useBuild();
+  if (!build) return null;
+  return <Updates state={state} build={build} />;
+}
+
+function Updates({ state, build }: { state: AppState; build: Build }) {
   const t = useT();
   const locale = useLocale();
-  const build = useBuild();
   const step = useUpdateStep();
-  if (!build) return null;
   const busy = step.step === "downloading" || step.step === "installing";
+  const chosen = state.updateChannel ?? build.channel;
+  const checked = useRef(chosen);
+
+  useEffect(() => {
+    if (checked.current === chosen) return;
+    checked.current = chosen;
+    if (build.updates) void recheckUpdate();
+  }, [chosen, build.updates]);
 
   return (
     <>
       <SettingSection title={t("settings-build")}>
-        <SettingRow label={t("settings-build-version")}>
+        <SettingRow
+          label={t("settings-build-version")}
+          hint={build.updates ? status(t, step, chosen, build) : undefined}
+        >
           <span className="text-soft tabular-nums">{revisionText(build, locale)}</span>
+          {build.updates && <UpdateAction step={step} />}
         </SettingRow>
+        {step.step === "found" && step.release.changes.length > 0 && (
+          <ChangeList
+            changes={step.release.changes}
+            className="max-h-48 border-hairline border-b py-3"
+          />
+        )}
         {build.updates ? (
           <SettingRow label={t("settings-channel")} hint={t("settings-channel-hint")}>
             <Segmented
               label={t("settings-channel")}
-              value={state.updateChannel ?? build.channel}
+              value={chosen}
               segments={CHANNELS.map((channel) => ({
                 value: channel,
                 label: t("release-channel", { channel }),
               }))}
               onChange={(channel) => {
-                if (busy) return;
-                forgetUpdate();
-                send(commands.setUpdateChannel(channel));
+                if (!busy) send(commands.setUpdateChannel(channel));
               }}
             />
           </SettingRow>
@@ -70,7 +91,6 @@ export function UpdateSettings({ state }: { state: AppState }) {
           </Button>
         </SettingRow>
       </SettingSection>
-      {build.updates && <NewRelease step={step} />}
       <GameDataSection catalog={state.catalog} />
       <SettingSection title={t("settings-changes")}>
         {build.changes.length > 0 ? (
@@ -88,31 +108,24 @@ function emptyChanges(build: Build) {
   return build.channel === "dev" ? "settings-changes-local" : "settings-changes-none";
 }
 
-/** The check for a release of the chosen channel and, once found, its install. */
-function NewRelease({ step }: { step: UpdateStep }) {
+/** The check for a release of the chosen channel, or the install of the one found. */
+function UpdateAction({ step }: { step: UpdateStep }) {
   const t = useT();
-  return (
-    <SettingSection title={t("settings-update")}>
-      <SettingRow label={status(t, step)}>
-        {(step.step === "idle" || step.step === "latest" || step.step === "failed") && (
-          <Button size="sm" onClick={() => void checkUpdate()}>
-            {t("update-check")}
-          </Button>
-        )}
-        {step.step === "found" && (
-          <Button size="sm" tone="primary" onClick={() => void installUpdate(step.release)}>
-            {t("update-install")}
-          </Button>
-        )}
-      </SettingRow>
-      {step.step === "found" && step.release.changes.length > 0 && (
-        <ChangeList
-          changes={step.release.changes}
-          className="max-h-48 border-hairline border-t py-3"
-        />
-      )}
-    </SettingSection>
-  );
+  if (step.step === "found") {
+    return (
+      <Button size="sm" tone="primary" onClick={() => void installUpdate(step.release)}>
+        {t("update-install")}
+      </Button>
+    );
+  }
+  if (step.step === "idle" || step.step === "latest" || step.step === "failed") {
+    return (
+      <Button size="sm" onClick={() => void checkUpdate()}>
+        {t("update-check")}
+      </Button>
+    );
+  }
+  return null;
 }
 
 /** Game data states in which a check is under way. */
@@ -151,15 +164,20 @@ function GameDataSection({ catalog }: { catalog: Catalog }) {
   );
 }
 
-/** One line on where the update stands. */
-function status(t: Translate, step: UpdateStep): string {
+/**
+ * One line on where the update stands; with nothing newer in a channel other than the build's
+ * own, the wait for that channel to pass this build.
+ */
+function status(t: Translate, step: UpdateStep, chosen: ReleaseChannel, build: Build): string {
   switch (step.step) {
     case "idle":
       return t("update-unchecked");
     case "checking":
       return t("update-checking");
     case "latest":
-      return t("update-latest");
+      return chosen === build.channel
+        ? t("update-latest")
+        : t("update-waiting", { channel: chosen, revision: `r${build.revision}` });
     case "found":
       return t("update-found", { revision: `r${step.release.revision}` });
     case "downloading": {

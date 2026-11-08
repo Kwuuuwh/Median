@@ -2790,6 +2790,7 @@ dependencies = [
  "proc-macro2",
  "reqwest",
  "rusqlite",
+ "semver",
  "serde",
  "serde_json",
  "specta",

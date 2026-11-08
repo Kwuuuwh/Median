@@ -402,7 +402,7 @@ export function standActions(snapshot: Snapshot): Answers {
             revision: 120,
             hash: "cc465feb9",
             built: Math.floor(Date.now() / 1000) - 3 * 86_400,
-            channel: "stable",
+            channel: "preview",
             updates: true,
             changes: ["fix(market): read 509 as a connection ceiling, not a rate limit"],
           }
@@ -418,16 +418,20 @@ export function standActions(snapshot: Snapshot): Answers {
       new Promise((found) =>
         setTimeout(
           () =>
-            found({
-              revision: 126,
-              channel: state()?.updateChannel ?? "stable",
-              changes: [
-                "feat(app): sign in to warframe.market and keep the token",
-                "feat(market): carry a token on calls that need one",
-                "feat(account): make the purse part of a reading",
-              ],
-              published: Math.floor(Date.now() / 1000) - 3_600,
-            }),
+            found(
+              state()?.updateChannel === "stable"
+                ? null
+                : {
+                    revision: 126,
+                    channel: "preview",
+                    changes: [
+                      "feat(app): sign in to warframe.market and keep the token",
+                      "feat(market): carry a token on calls that need one",
+                      "feat(account): make the purse part of a reading",
+                    ],
+                    published: Math.floor(Date.now() / 1000) - 3_600,
+                  },
+            ),
           CHECK_MS,
         ),
       ),

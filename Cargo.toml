@@ -28,6 +28,7 @@ tauri-build = { version = "2" }
 # Read the update signing key the way tauri-plugin-updater does, to test it.
 base64 = "0.22"
 minisign-verify = "0.2"
+semver = "1"
 # --- typed IPC codegen (specta) ---
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }

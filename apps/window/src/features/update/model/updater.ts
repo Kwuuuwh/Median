@@ -80,6 +80,13 @@ export async function installUpdate(release: Release): Promise<void> {
   }
 }
 
+/** Checks again once any check under way ends, so a channel just chosen is the one checked. */
+export async function recheckUpdate(): Promise<UpdateStep> {
+  await checking;
+  forgetUpdate();
+  return checkUpdate();
+}
+
 /** Forgets what the last check found, unless it is downloading or installing. */
 export function forgetUpdate(): void {
   if (current.step === "downloading" || current.step === "installing") return;
