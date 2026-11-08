@@ -221,9 +221,24 @@ function fused(lines: readonly HeldLine[]): HeldLine[] {
 /** Kinds shown on their own pages instead of the inventory: relics and rivens. */
 const ELSEWHERE = new Set(["relic", "riven"]);
 
-/** The tab a line belongs to; null for a line shown on its own page. */
+/** Classes of built equipment: what the arsenal, the ship and the railjack hold. */
+const EQUIPMENT = new Set([
+  "warframe",
+  "primary",
+  "secondary",
+  "melee",
+  "exalted",
+  "archwing-weapon",
+  "companion",
+  "companion-weapon",
+  "modular",
+  "railjack",
+  "ship",
+]);
+
+/** The tab a line belongs to; null for a line shown on its own page and for built equipment. */
 export function tabOf(line: HeldLine, members: ReadonlySet<string>): InventoryTab | null {
-  if (ELSEWHERE.has(line.kind)) return null;
+  if (ELSEWHERE.has(line.kind) || EQUIPMENT.has(line.group)) return null;
   if (line.group === SET_GROUP) return "sets";
   if (!line.known) return "other";
   if (line.group === "mod") return "mods";

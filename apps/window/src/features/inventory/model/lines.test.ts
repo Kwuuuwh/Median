@@ -72,6 +72,10 @@ function lines(pieces: Piece[], goods: Good[], prices: Priced[] = []): HeldLine[
       ["mod-warframe", "mod"],
       ["component", "component"],
       ["arcane", "arcane"],
+      ["primary", "primary"],
+      ["warframe", "warframe"],
+      ["sentinel", "companion"],
+      ["resource", "resource"],
     ]),
     sets: [set],
     held,
@@ -120,7 +124,7 @@ describe("heldLines", () => {
       "mastered",
     ]);
     const members = new Set(set.members);
-    expect(held.map((line) => tabOf(line, members))).toEqual(["parts", "parts", "other", "sets"]);
+    expect(held.map((line) => tabOf(line, members))).toEqual(["parts", "parts", null, "sets"]);
   });
 
   it("calls a part spare past one build, and every copy once the set is built", () => {
@@ -135,6 +139,25 @@ describe("heldLines", () => {
 
     const built = lines([piece("/A1", 1), piece("/A", 1)], [...parts, good("/A", "A", "primary")]);
     expect(built.find((line) => line.item === "/A1")?.spare).toBe(1);
+  });
+
+  it("leaves built equipment out, priced or not, and keeps other loose items", () => {
+    const held = lines(
+      [piece("/Rifle", 1), piece("/Frame", 1), piece("/Sentinel", 1), piece("/Ore", 40)],
+      [
+        good("/Rifle", "Винтовка", "primary"),
+        good("/Frame", "Варфрейм", "warframe", { tradable: false }),
+        good("/Sentinel", "Страж", "sentinel", { tradable: false }),
+        good("/Ore", "Руда", "resource"),
+      ],
+      [priced("/Rifle", 90)],
+    );
+    expect(held.map((line) => [line.item, tabOf(line, new Set())])).toEqual([
+      ["/Rifle", null],
+      ["/Frame", null],
+      ["/Sentinel", null],
+      ["/Ore", "other"],
+    ]);
   });
 
   it("leaves relics and rivens to pages of their own", () => {
