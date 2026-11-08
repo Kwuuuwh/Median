@@ -18,6 +18,8 @@ static DATA: AtomicBool = AtomicBool::new(false);
 static SETTLED: AtomicBool = AtomicBool::new(false);
 /// Whether the main window and the overlay were created.
 static OPENED: AtomicBool = AtomicBool::new(false);
+/// Whether the start failed, so only the launcher may open.
+static FAILED: AtomicBool = AtomicBool::new(false);
 
 /// Delay between sending the invisible status and exiting.
 pub const PARTING: Duration = Duration::from_millis(600);
@@ -32,6 +34,20 @@ pub fn start(app: &AppHandle, ready: bool) {
         DATA.store(true, Ordering::SeqCst);
     }
     if open(app) {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(why) = create(&app, LAUNCHER) {
+            error!(error = %why, "launcher window not created");
+        }
+    });
+}
+
+/// Opens only the launcher, for a start that failed; the main window and the overlay never open.
+pub fn fail(app: &AppHandle) {
+    FAILED.store(true, Ordering::SeqCst);
+    if app.get_webview_window(LAUNCHER).is_some() {
         return;
     }
     let app = app.clone();
@@ -57,6 +73,9 @@ pub fn update_settled(app: &AppHandle) {
 /// Creates the main window and the overlay once game data is ready and the update step is over;
 /// `false` while either is pending.
 fn open(app: &AppHandle) -> bool {
+    if FAILED.load(Ordering::SeqCst) {
+        return false;
+    }
     if !(DATA.load(Ordering::SeqCst) && SETTLED.load(Ordering::SeqCst)) {
         return false;
     }

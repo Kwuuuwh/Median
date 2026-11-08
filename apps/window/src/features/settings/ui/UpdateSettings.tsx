@@ -7,21 +7,15 @@ import {
   send,
 } from "@median/ipc";
 import { useEffect, useRef } from "react";
-import {
-  checkUpdate,
-  downloadedShare,
-  installUpdate,
-  recheckUpdate,
-  type UpdateStep,
-  useUpdateStep,
-} from "@/features/update/model/updater";
+import { recheckUpdate, useUpdateStep } from "@/features/update/model/updater";
 import { ChangeList } from "@/features/update/ui/ChangeList";
+import { UpdateAction, updateStatus } from "@/features/update/ui/UpdateStatus";
 import { useBuild, useLocale } from "@/shared/data/app-state";
 import { useGameData } from "@/shared/data/catalog";
-import { type Translate, useT } from "@/shared/i18n";
+import { useT } from "@/shared/i18n";
 import { dataProgress } from "@/shared/lib/data-progress";
 import { formatDate } from "@/shared/lib/format";
-import { releaseName, revisionText } from "@/shared/lib/revision";
+import { revisionText } from "@/shared/lib/revision";
 import { Button } from "@/shared/ui/button";
 import { Segmented } from "@/shared/ui/segmented";
 import { SettingRow, SettingSection } from "./SettingRow";
@@ -55,7 +49,7 @@ function Updates({ state, build }: { state: AppState; build: Build }) {
       <SettingSection title={t("settings-build")}>
         <SettingRow
           label={t("settings-build-version")}
-          hint={build.updates ? status(t, step, chosen, build) : undefined}
+          hint={build.updates ? updateStatus(t, step, chosen, build) : undefined}
         >
           <span className="text-soft tabular-nums">{revisionText(build, locale)}</span>
           {build.updates && <UpdateAction step={step} />}
@@ -108,26 +102,6 @@ function emptyChanges(build: Build) {
   return build.channel === "dev" ? "settings-changes-local" : "settings-changes-none";
 }
 
-/** The check for a release of the chosen channel, or the install of the one found. */
-function UpdateAction({ step }: { step: UpdateStep }) {
-  const t = useT();
-  if (step.step === "found") {
-    return (
-      <Button size="sm" tone="primary" onClick={() => void installUpdate(step.release)}>
-        {t("update-install")}
-      </Button>
-    );
-  }
-  if (step.step === "idle" || step.step === "latest" || step.step === "failed") {
-    return (
-      <Button size="sm" onClick={() => void checkUpdate()}>
-        {t("update-check")}
-      </Button>
-    );
-  }
-  return null;
-}
-
 /** Game data states in which a check is under way. */
 const DATA_BUSY: ReadonlySet<Catalog["activity"]["state"]> = new Set([
   "checking",
@@ -162,36 +136,4 @@ function GameDataSection({ catalog }: { catalog: Catalog }) {
       </SettingRow>
     </SettingSection>
   );
-}
-
-/**
- * One line on where the update stands; with nothing newer in a channel other than the build's
- * own, the wait for that channel to pass this build.
- */
-function status(t: Translate, step: UpdateStep, chosen: ReleaseChannel, build: Build): string {
-  switch (step.step) {
-    case "idle":
-      return t("update-unchecked");
-    case "checking":
-      return t("update-checking");
-    case "latest":
-      return chosen === build.channel
-        ? t("update-latest")
-        : t("update-waiting", { channel: chosen, revision: `r${build.revision}` });
-    case "found":
-      return t("update-found", { revision: releaseName(step.release) });
-    case "downloading": {
-      const share = downloadedShare(step);
-      const revision = releaseName(step.release);
-      return share === null
-        ? t("update-downloading", { revision })
-        : t("update-downloading-share", { revision, percent: Math.floor(share * 100) });
-    }
-    case "installing":
-      return t("update-installing");
-    case "failed":
-      return t(step.during === "check" ? "update-check-failed" : "update-install-failed", {
-        reason: step.reason,
-      });
-  }
 }

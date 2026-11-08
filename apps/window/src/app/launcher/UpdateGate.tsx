@@ -46,9 +46,11 @@ export function UpdateGate({ onSettled }: { onSettled: () => void }) {
           </div>
           <ChangeList changes={step.release.changes} className="min-h-0 flex-1" />
           <div className="flex justify-end gap-2">
-            <Button tone="ghost" onClick={onSettled}>
-              {t("update-later")}
-            </Button>
+            {!step.release.required && (
+              <Button tone="ghost" onClick={onSettled}>
+                {t("update-later")}
+              </Button>
+            )}
             <Button tone="primary" onClick={() => void installUpdate(step.release)}>
               {t("update-install")}
             </Button>

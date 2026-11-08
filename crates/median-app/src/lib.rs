@@ -29,6 +29,7 @@ mod settings;
 #[cfg(feature = "dev")]
 pub mod snapshot;
 mod sound;
+mod startup;
 mod state_sink;
 mod syndicates;
 mod tasks;
@@ -63,11 +64,14 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(update::Pending::default())
+        .manage(startup::Failed::default())
         .invoke_handler(builder.invoke_handler())
         .register_uri_scheme_protocol(PICTURES, serve_picture)
         .setup(move |app| {
             builder.mount_events(app);
-            wiring::init(app)?;
+            let started =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| wiring::init(app)));
+            startup::settle(app, started);
             Ok(())
         })
         .run(tauri::generate_context!())

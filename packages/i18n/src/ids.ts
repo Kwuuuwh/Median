@@ -453,6 +453,8 @@ export type MessageId =
   | "span-days-hours"
   | "span-hours-minutes"
   | "span-minutes"
+  | "start-failed"
+  | "start-newer-data"
   | "status-auto"
   | "status-ingame"
   | "status-invisible"

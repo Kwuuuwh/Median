@@ -38,6 +38,14 @@ const STATUSES = [
 
 /** Whether the mock is a released build that finds an update (`?update`). */
 const UPDATES = new URLSearchParams(location.search).has("update");
+/** Whether the update the mock finds is required (`?required`). */
+const REQUIRED = new URLSearchParams(location.search).has("required");
+/** How the mock's start failed: on newer data (`?newer`), on an error (`?failed`), or not. */
+const FAILED = new URLSearchParams(location.search).has("newer")
+  ? "newer"
+  : new URLSearchParams(location.search).has("failed")
+    ? "error"
+    : null;
 /** How long the mock's update check takes. */
 const CHECK_MS = 1_200;
 /** Size of the mock's update download, its step and the interval between steps. */
@@ -396,6 +404,15 @@ export function standActions(snapshot: Snapshot): Answers {
       haul = [];
       return null;
     },
+    getStartFailure: () =>
+      FAILED === null
+        ? null
+        : {
+            reason:
+              "the history could not be opened: the file could not be migrated: no such column: holding.kept",
+            newerData: FAILED === "newer",
+            locale: "ru",
+          },
     getBuild: () =>
       UPDATES
         ? {
@@ -431,6 +448,7 @@ export function standActions(snapshot: Snapshot): Answers {
                       "feat(account): make the purse part of a reading",
                     ],
                     published: Math.floor(Date.now() / 1000) - 3_600,
+                    required: REQUIRED,
                   },
             ),
           CHECK_MS,

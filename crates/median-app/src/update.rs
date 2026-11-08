@@ -63,6 +63,14 @@ fn release_of(version: &str) -> Option<(u32, UpdateChannel)> {
     }
 }
 
+/// Whether the announcement marks the release as one installed builds must take before going on.
+fn required(announcement: &serde_json::Value) -> bool {
+    announcement
+        .get("required")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+}
+
 /// Revision of a newer release found on `channel`, `None` when its version does not read as one;
 /// an error only for a version that reads as another channel's release.
 fn offered(version: &str, channel: UpdateChannel) -> Result<Option<u32>, String> {
@@ -87,16 +95,19 @@ pub async fn check(
         .ok_or("this build takes no updates")?;
     let channel = chosen.unwrap_or(own);
 
-    let stream = app.state::<Stream>().inner().clone();
-    let builder = app
+    let mut builder = app
         .updater_builder()
         .endpoints(vec![endpoint(SOURCE, channel)?])
-        .map_err(|e| e.to_string())?
-        // Sets the warframe.market status to invisible before the installer exits the app.
-        .on_before_exit(move || {
+        .map_err(|e| e.to_string())?;
+    // Sets the warframe.market status to invisible before the installer exits the app; a start
+    // that failed has no market stream.
+    if let Some(stream) = app.try_state::<Stream>() {
+        let stream = stream.inner().clone();
+        builder = builder.on_before_exit(move || {
             stream.ask(Ask::Status(Status::Invisible));
             std::thread::sleep(window::PARTING);
         });
+    }
     let found = builder
         .build()
         .map_err(|e| e.to_string())?
@@ -129,6 +140,7 @@ pub async fn check(
                 published: update
                     .date
                     .and_then(|date| u32::try_from(date.unix_timestamp()).ok()),
+                required: required(&update.raw_json),
             })
         }
         None => None,
@@ -235,6 +247,20 @@ mod tests {
         assert_eq!(offered("0.0.18-beta", UpdateChannel::Stable), Ok(None));
         assert!(offered("0.0.17", UpdateChannel::Preview).is_err());
         assert!(offered("0.0.17-preview", UpdateChannel::Stable).is_err());
+    }
+
+    #[test]
+    fn a_release_is_required_only_when_its_announcement_says_so() {
+        assert!(required(
+            &serde_json::json!({ "version": "0.0.18", "required": true })
+        ));
+        assert!(!required(
+            &serde_json::json!({ "version": "0.0.18", "required": false })
+        ));
+        assert!(!required(&serde_json::json!({ "version": "0.0.18" })));
+        assert!(!required(
+            &serde_json::json!({ "version": "0.0.18", "required": "yes" })
+        ));
     }
 
     #[test]

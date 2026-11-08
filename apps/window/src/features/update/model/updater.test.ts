@@ -8,6 +8,7 @@ const release: Release = {
   channel: "stable",
   changes: [],
   published: null,
+  required: false,
 };
 
 describe("progressed", () => {

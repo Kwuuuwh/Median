@@ -12,10 +12,10 @@ use median_ipc::{
     AppState, Build, Card, Coin, Collectible, Curve, Figures, GameData, Good, Haul, Holdings, Icon,
     MasteryRank, Node, Orders, OwnAuction, OwnOrder, Pair, Posting, Priced, Quote, Release,
     ReleaseChannel, Relic, RerollOdds, Riven, RivenAppraisal, RivenBand, RivenBuy, RivenChoices,
-    RivenDemand, Roadmap, Scorecard, SetRow, Syndicate, Taxonomy, Tree,
+    RivenDemand, Roadmap, Scorecard, SetRow, StartFailure, Syndicate, Taxonomy, Tree,
 };
 use median_market::{AuctionChange, MarketError, Mine, Placing, Session, Side};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc::Sender;
 use tracing::{debug, info, warn};
 
@@ -87,20 +87,27 @@ pub fn build(updates: bool) -> Build {
     }
 }
 
-/// Checks the chosen release channel for a release to install; `None` when there is none.
+/// Checks the chosen release channel, or the build's own after a failed start, for a release to
+/// install; `None` when there is none.
 #[tauri::command]
 #[specta::specta]
-pub async fn check_update(
-    app: AppHandle,
-    shared: tauri::State<'_, SharedState>,
-) -> Result<Option<Release>, String> {
-    let chosen = shared
-        .0
-        .read()
-        .unwrap_or_else(PoisonError::into_inner)
-        .update_channel
-        .and_then(from_release_channel);
+pub async fn check_update(app: AppHandle) -> Result<Option<Release>, String> {
+    let chosen = app.try_state::<SharedState>().and_then(|shared| {
+        shared
+            .0
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .update_channel
+            .and_then(from_release_channel)
+    });
     update::check(&app, chosen).await
+}
+
+/// Why this run did not start; `None` after a good start.
+#[tauri::command]
+#[specta::specta]
+pub fn get_start_failure(failed: tauri::State<'_, crate::startup::Failed>) -> Option<StartFailure> {
+    failed.get()
 }
 
 /// Downloads and installs the release the last check found; progress arrives via

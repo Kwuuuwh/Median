@@ -15,6 +15,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::set_accent,
             commands::get_build,
             commands::check_update,
+            commands::get_start_failure,
             commands::install_update,
             commands::set_update_channel,
             commands::update_settled,

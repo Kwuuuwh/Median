@@ -2,6 +2,7 @@
 export const keys = {
   state: ["state"] as const,
   build: ["build"] as const,
+  startFailure: ["start-failure"] as const,
   holdings: ["holdings"] as const,
   goods: (lang: string, items: readonly string[]) => ["goods", lang, items] as const,
   goodsAll: ["goods"] as const,

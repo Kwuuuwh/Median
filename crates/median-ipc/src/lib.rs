@@ -14,8 +14,9 @@ pub use dto::{
     Release, ReleaseChannel, Relic, Requirement, Requirements, RerollOdds, Research, Reset, Reward,
     Rewards, Riven, RivenAnalog, RivenAppraisal, RivenBand, RivenBuy, RivenChoices, RivenDemand,
     RivenGrade, RivenPick, RivenStat, Roadmap, Sale, Scorecard, Seen, SetRow, Shelf, Slot, Spot,
-    Stage, StandingDay, StandingOffer, StatForm, StatVerdict, Step, Swap, SwapPart, Syndicate,
-    Task, TaskState, Taxonomy, Tree, Uncounted, Vendor, Visit, Watch, Way, Whisper, Worldstate,
+    Stage, StandingDay, StandingOffer, StartFailure, StatForm, StatVerdict, Step, Swap, SwapPart,
+    Syndicate, Task, TaskState, Taxonomy, Tree, Uncounted, Vendor, Visit, Watch, Way, Whisper,
+    Worldstate,
 };
 pub use events::{
     AccountChanged, AgentChanged, BookMoved, CatalogChanged, CollectorChanged, GameChanged,

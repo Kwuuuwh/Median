@@ -11,7 +11,10 @@ export const commands = {
 	setAccent: (name: string) => typedError<null, string>(__TAURI_INVOKE("set_accent", { name })),
 	/**  Returns this build's revision, commit hash, build time, channel, update state and changes. */
 	getBuild: () => __TAURI_INVOKE<Build>("get_build"),
-	/**  Checks the chosen release channel for a release to install; `None` when there is none. */
+	/**
+	 *  Checks the chosen release channel, or the build's own after a failed start, for a release to
+	 *  install; `None` when there is none.
+	 */
 	checkUpdate: () => typedError<{
 	/**  Revision of the release; `None` when its version does not read as one. */
 	revision: number | null,
@@ -23,7 +26,18 @@ export const commands = {
 	changes: string[],
 	/**  Publication time, Unix seconds; `None` when the announcement gives none. */
 	published: number | null,
+	/**  Whether installed builds must take the release before going on. */
+	required: boolean,
 } | null, string>(__TAURI_INVOKE("check_update")),
+	/**  Why this run did not start; `None` after a good start. */
+	getStartFailure: () => __TAURI_INVOKE<{
+	/**  The error as the log has it. */
+	reason: string,
+	/**  Whether the account data comes from a later build. */
+	newerData: boolean,
+	/**  Interface language from the saved settings. */
+	locale: string,
+} | null>("get_start_failure"),
 	/**
 	 *  Downloads and installs the release the last check found; progress arrives via
 	 *  `UpdateProgressed`.
@@ -1644,6 +1658,8 @@ export type Release = {
 	changes: string[],
 	/**  Publication time, Unix seconds; `None` when the announcement gives none. */
 	published: number | null,
+	/**  Whether installed builds must take the release before going on. */
+	required: boolean,
 };
 
 /**  Release channel of a build, wire form. */
@@ -2088,6 +2104,16 @@ export type StandingOffer = {
 	days: number | null,
 	/**  Copies the account already holds. */
 	owned: number,
+};
+
+/**  Why median did not start, wire form; the launcher shows it and still offers updates. */
+export type StartFailure = {
+	/**  The error as the log has it. */
+	reason: string,
+	/**  Whether the account data comes from a later build. */
+	newerData: boolean,
+	/**  Interface language from the saved settings. */
+	locale: string,
 };
 
 /**  How the game formats a stat value, wire form. */

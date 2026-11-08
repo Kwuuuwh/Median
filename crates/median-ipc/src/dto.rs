@@ -959,6 +959,20 @@ pub struct Release {
     pub changes: Vec<String>,
     /// Publication time, Unix seconds; `None` when the announcement gives none.
     pub published: Option<Instant>,
+    /// Whether installed builds must take the release before going on.
+    pub required: bool,
+}
+
+/// Why median did not start, wire form; the launcher shows it and still offers updates.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct StartFailure {
+    /// The error as the log has it.
+    pub reason: String,
+    /// Whether the account data comes from a later build.
+    pub newer_data: bool,
+    /// Interface language from the saved settings.
+    pub locale: String,
 }
 
 /// Release channel of a build, wire form.
