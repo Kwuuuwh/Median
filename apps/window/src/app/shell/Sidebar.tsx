@@ -101,7 +101,7 @@ function NavLink({
   const link = (
     <Link
       to={to}
-      className="flex h-8 items-center gap-2.5 rounded-control px-2.5 text-body text-muted transition-colors hover:bg-raised hover:text-ink data-[status=active]:bg-raised data-[status=active]:text-ink [&.active_svg]:text-accent"
+      className="flex h-8 items-center gap-2.5 rounded-control px-2.5 text-body text-muted transition-colors hover:bg-raised hover:text-ink data-[status=active]:bg-accent/15 data-[status=active]:text-ink [&.active_svg]:text-accent"
       activeProps={{ className: "active" }}
     >
       <Icon className="size-4 shrink-0" />

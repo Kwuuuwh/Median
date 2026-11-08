@@ -15,7 +15,7 @@ export function Slider({ className, ...props }: ComponentProps<typeof Primitive.
       <Primitive.Track className="relative h-1 grow overflow-hidden rounded-full bg-raised">
         <Primitive.Range className="absolute h-full bg-accent" />
       </Primitive.Track>
-      <Primitive.Thumb className="block size-3.5 rounded-full border border-line bg-ink outline-none focus-visible:ring-2 focus-visible:ring-accent/60" />
+      <Primitive.Thumb className="block size-3.5 rounded-full border border-line bg-ink outline-none focus-visible:ring-2 focus-visible:ring-ink/40" />
     </Primitive.Root>
   );
 }
