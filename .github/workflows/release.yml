@@ -41,12 +41,26 @@ jobs:
           if [ "$GITHUB_REF_NAME" = "main" ]; then
             channel=stable
             prerelease=false
+            version="0.0.$revision"
+            tag="r$revision"
+            pattern='^r[0-9]+$'
           else
             channel=preview
             prerelease=true
+            version="0.0.$revision-preview"
+            tag="r$revision-preview"
+            pattern='^r[0-9]+(-preview)?$'
           fi
           previous=$(gh release list --limit 100 --json tagName,isPrerelease \
-            --jq "[.[] | select((.tagName | test(\"^r[0-9]+$\")) and .isPrerelease == $prerelease)][0].tagName // empty")
+            --jq "[.[] | select((.tagName | test(\"$pattern\")) and .isPrerelease == $prerelease)][0].tagName // empty")
+          if [ -n "$previous" ] && ! git merge-base --is-ancestor "$previous" HEAD; then
+            echo "::error::$GITHUB_REF_NAME no longer holds $previous: its history was rewritten"
+            exit 1
+          fi
+          if [ "$channel" = stable ] && ! git merge-base --is-ancestor HEAD origin/preview; then
+            echo "::error::main holds commits preview does not; move main to preview by fast-forward"
+            exit 1
+          fi
           git log --no-merges --format=%s ${previous:+"$previous"..}HEAD > subjects.txt
           : > notes.txt
           : > notes.md
@@ -67,6 +81,8 @@ jobs:
             echo "revision=$revision"
             echo "channel=$channel"
             echo "prerelease=$prerelease"
+            echo "version=$version"
+            echo "tag=$tag"
           } >> "$GITHUB_OUTPUT"
 
       - name: Build the collector
@@ -80,31 +96,31 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          revision=${{ steps.describe.outputs.revision }}
-          pnpm tauri build --config "{\"productName\":\"Median\",\"identifier\":\"com.median.desktop\",\"version\":\"0.0.$revision\",\"bundle\":{\"resources\":{\"../../apps/collector/dist\":\"collector\"}}}"
+          version=${{ steps.describe.outputs.version }}
+          pnpm tauri build --config "{\"productName\":\"Median\",\"identifier\":\"com.median.desktop\",\"version\":\"$version\",\"bundle\":{\"resources\":{\"../../apps/collector/dist\":\"collector\"}}}"
 
-      - name: Publish r${{ steps.describe.outputs.revision }}
+      - name: Publish ${{ steps.describe.outputs.tag }}
         run: |
-          revision=${{ steps.describe.outputs.revision }}
+          tag=${{ steps.describe.outputs.tag }}
           setup=$(ls target/release/bundle/nsis/*-setup.exe)
           flags="--latest"
           if [ "${{ steps.describe.outputs.prerelease }}" = "true" ]; then
             flags="--prerelease --latest=false"
           fi
-          gh release create "r$revision" "$setup" "$setup.sig" \
-            --target "$GITHUB_SHA" --title "r$revision" --notes-file notes.md $flags
+          gh release create "$tag" "$setup" "$setup.sig" \
+            --target "$GITHUB_SHA" --title "$tag" --notes-file notes.md $flags
 
       - name: Announce the update
         run: |
-          revision=${{ steps.describe.outputs.revision }}
+          tag=${{ steps.describe.outputs.tag }}
           channel=${{ steps.describe.outputs.channel }}
           setup=$(ls target/release/bundle/nsis/*-setup.exe)
           jq -n \
-            --arg version "0.0.$revision" \
+            --arg version "${{ steps.describe.outputs.version }}" \
             --rawfile notes notes.txt \
             --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg signature "$(cat "$setup.sig")" \
-            --arg url "https://github.com/$GITHUB_REPOSITORY/releases/download/r$revision/$(basename "$setup")" \
+            --arg url "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$(basename "$setup")" \
             '{version: $version, notes: $notes, pub_date: $date,
               platforms: {"windows-x86_64": {signature: $signature, url: $url}}}' > latest.json
           if ! gh release view "updater-$channel" > /dev/null 2>&1; then
