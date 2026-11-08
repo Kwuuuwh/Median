@@ -704,8 +704,6 @@ syndicate-order = { $order ->
   }
 syndicate-platinum-range = Platinum
 syndicate-volume-range = Turnover, a day
-syndicate-from = from
-syndicate-to = to
 syndicate-name = { $tag ->
     [SteelMeridianSyndicate] Steel Meridian
     [ArbitersSyndicate] Arbiters of Hexis

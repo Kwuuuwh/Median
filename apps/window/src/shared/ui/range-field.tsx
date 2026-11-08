@@ -1,7 +1,7 @@
 import { cn } from "@/shared/lib/cn";
 import { Input } from "./input";
 
-/** Lower and upper whole-number fields under one label, each with a hint naming its bound. */
+/** Lower and upper whole-number fields after one label, each with a hint naming its bound. */
 export function RangeField({
   label,
   from,
@@ -27,7 +27,7 @@ export function RangeField({
 }) {
   return (
     <span className={cn("flex items-center gap-1.5 text-muted text-small", className)}>
-      {label}
+      <span className="mr-auto pr-2">{label}</span>
       <Input
         type="number"
         min={0}

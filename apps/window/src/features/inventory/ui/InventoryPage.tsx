@@ -10,7 +10,6 @@ import { EmptyState } from "@/shared/ui/empty-state";
 import { FacetMenu } from "@/shared/ui/facet-menu";
 import { Money } from "@/shared/ui/money";
 import { wholeNumber } from "@/shared/ui/number-field";
-import { RangeField } from "@/shared/ui/range-field";
 import { SearchField } from "@/shared/ui/search-field";
 import { Segmented } from "@/shared/ui/segmented";
 import { SortSelect } from "@/shared/ui/sort-select";
@@ -163,16 +162,22 @@ export function InventoryPage() {
             placeholder={t("inventory-search")}
             className="w-56 min-w-36 shrink"
           />
-          <RangeField
-            label={t("inventory-price")}
-            from={view.from}
-            to={view.to}
-            onFrom={(from) => setView({ from })}
-            onTo={(to) => setView({ to })}
-            fromHint={t("range-from")}
-            toHint={t("range-to")}
-            invalidFrom={view.from !== "" && wholeNumber(view.from, 0, MOST_PRICE) === null}
-            invalidTo={view.to !== "" && wholeNumber(view.to, 0, MOST_PRICE) === null}
+          <FacetMenu
+            facets={current === "sets" ? [] : TAB_FACETS[current]}
+            values={view.facets}
+            onChange={(values) => setView({ facets: values })}
+            ranges={[
+              {
+                label: t("inventory-price"),
+                from: view.from,
+                to: view.to,
+                invalidFrom: view.from !== "" && wholeNumber(view.from, 0, MOST_PRICE) === null,
+                invalidTo: view.to !== "" && wholeNumber(view.to, 0, MOST_PRICE) === null,
+                onChange: (from, to) => setView({ from, to }),
+              },
+            ]}
+            onClear={() => setView({ facets: new Map(), from: "", to: "" })}
+            className="w-44"
           />
           {current === "sets" ? (
             <SortSelect<KitOrder>
@@ -187,24 +192,16 @@ export function InventoryPage() {
               }))}
             />
           ) : (
-            <>
-              <FacetMenu
-                facets={TAB_FACETS[current]}
-                values={view.facets}
-                onChange={(values) => setView({ facets: values })}
-                className="w-44"
-              />
-              <SortSelect<LineOrder>
-                label={t("shelf-sort")}
-                className="w-36"
-                value={view.order}
-                onChange={(order) => setView({ order })}
-                choices={TAB_ORDERS[current].map((order) => ({
-                  value: order,
-                  label: t("inventory-order", { order }),
-                }))}
-              />
-            </>
+            <SortSelect<LineOrder>
+              label={t("shelf-sort")}
+              className="w-36"
+              value={view.order}
+              onChange={(order) => setView({ order })}
+              choices={TAB_ORDERS[current].map((order) => ({
+                value: order,
+                label: t("inventory-order", { order }),
+              }))}
+            />
           )}
         </div>
       </div>

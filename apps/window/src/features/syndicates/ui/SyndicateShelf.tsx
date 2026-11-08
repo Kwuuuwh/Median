@@ -11,8 +11,8 @@ import { matcher } from "@/shared/lib/search";
 import type { Sorting } from "@/shared/lib/sort";
 import { Button } from "@/shared/ui/button";
 import { EmptyState } from "@/shared/ui/empty-state";
-import { FacetMenu } from "@/shared/ui/facet-menu";
-import { NumberField, wholeNumber } from "@/shared/ui/number-field";
+import { FacetMenu, type FacetRange } from "@/shared/ui/facet-menu";
+import { wholeNumber } from "@/shared/ui/number-field";
 import { SearchField } from "@/shared/ui/search-field";
 import { SortSelect } from "@/shared/ui/sort-select";
 import { TileGrid } from "@/shared/ui/tile-grid";
@@ -29,47 +29,28 @@ import { SyndicateEmblem } from "./SyndicateEmblem";
 
 const ORDERS: readonly OfferOrder[] = ["platinum", "cost"];
 
+/** Highest bound a range field accepts. */
+const MOST_BOUND = 1_000_000;
+
 /** Bounds parsed from two fields; a field without a valid number leaves its side open. */
 function boundsOf(least: string, most: string): Bounds {
-  return { least: wholeNumber(least, 0, 1_000_000), most: wholeNumber(most, 0, 1_000_000) };
+  return { least: wholeNumber(least, 0, MOST_BOUND), most: wholeNumber(most, 0, MOST_BOUND) };
 }
 
-/** A labelled pair of fields with a lower and an upper bound for one value. */
-function Range({
-  label,
-  least,
-  most,
-  onLeast,
-  onMost,
-}: {
-  label: string;
-  least: string;
-  most: string;
-  onLeast: (value: string) => void;
-  onMost: (value: string) => void;
-}) {
-  const t = useT();
-  return (
-    <span className="inline-flex items-center gap-2">
-      <span className="text-muted text-small">{label}</span>
-      <NumberField
-        label={t("syndicate-from")}
-        value={least}
-        onChange={onLeast}
-        invalid={least !== "" && wholeNumber(least, 0, 1_000_000) === null}
-        min={0}
-        width="w-16"
-      />
-      <NumberField
-        label={t("syndicate-to")}
-        value={most}
-        onChange={onMost}
-        invalid={most !== "" && wholeNumber(most, 0, 1_000_000) === null}
-        min={0}
-        width="w-16"
-      />
-    </span>
-  );
+/** A filter range over two typed fields kept in `[least, most]`. */
+function rangeOf(
+  label: string,
+  [least, most]: readonly string[],
+  onChange: (bounds: [string, string]) => void,
+): FacetRange {
+  return {
+    label,
+    from: least,
+    to: most,
+    invalidFrom: least !== "" && wholeNumber(least, 0, MOST_BOUND) === null,
+    invalidTo: most !== "" && wholeNumber(most, 0, MOST_BOUND) === null,
+    onChange: (from, to) => onChange([from, to]),
+  };
 }
 
 /** Offers one syndicate sells for standing, with the user's search, filters and sort order. */
@@ -140,20 +121,15 @@ export function SyndicateShelf({
             label: t("syndicate-order", { order: each }),
           }))}
         />
-        <FacetMenu facets={OFFER_FACETS} values={facets} onChange={setFacets} className="w-52" />
-        <Range
-          label={t("syndicate-platinum-range")}
-          least={platinum[0]}
-          most={platinum[1]}
-          onLeast={(value) => setPlatinum([value, platinum[1]])}
-          onMost={(value) => setPlatinum([platinum[0], value])}
-        />
-        <Range
-          label={t("syndicate-volume-range")}
-          least={volume[0]}
-          most={volume[1]}
-          onLeast={(value) => setVolume([value, volume[1]])}
-          onMost={(value) => setVolume([volume[0], value])}
+        <FacetMenu
+          facets={OFFER_FACETS}
+          values={facets}
+          onChange={setFacets}
+          ranges={[
+            rangeOf(t("syndicate-platinum-range"), platinum, setPlatinum),
+            rangeOf(t("syndicate-volume-range"), volume, setVolume),
+          ]}
+          className="w-52"
         />
       </div>
       {shown.length === 0 ? (
