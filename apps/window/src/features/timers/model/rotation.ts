@@ -45,8 +45,8 @@ export type RotationSources = {
 };
 
 /**
- * Offered prime sets with their parts and the relics that drop them; sets neither held nor
- * mastered first, then by class order and name.
+ * Offered prime sets with a part dropping from an offered relic, with their parts and the relics
+ * that drop them; sets neither held nor mastered first, then by class order and name.
  */
 export function rotationOf(sources: RotationSources): PrimeSet[] {
   const drops = new Map<string, Drop[]>();
@@ -80,6 +80,7 @@ export function rotationOf(sources: RotationSources): PrimeSet[] {
         drops: drops.get(member) ?? [],
       };
     });
+    if (parts.every((part) => part.drops.length === 0)) return [];
     return [
       {
         built: offer.item,

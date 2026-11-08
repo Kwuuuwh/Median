@@ -72,7 +72,7 @@ const sources = {
 describe("rotationOf", () => {
   it("reads sets on offer with their parts, what drops them and what is held", () => {
     const rotation = rotationOf(sources);
-    expect(rotation.map((each) => each.name)).toEqual(["Банши Прайм", "Братон Прайм"]);
+    expect(rotation.map((each) => each.name)).toEqual(["Банши Прайм"]);
     const [banshee] = rotation;
     expect(banshee.platinum).toBe(120);
     expect(banshee.standing.parts).toEqual({ owned: 1, total: 2 });
@@ -80,6 +80,11 @@ describe("rotationOf", () => {
     expect(banshee.parts[1].drops).toEqual([
       { base: "/Relic/K5", name: "Реликвия Лит K5", rarity: "rare" },
     ]);
+  });
+
+  it("leaves out a set none of whose parts drop from the offered relics", () => {
+    const rotation = rotationOf({ ...sources, relics: [] });
+    expect(rotation).toEqual([]);
   });
 
   it("wants only the missing parts of sets not yet built or mastered", () => {
