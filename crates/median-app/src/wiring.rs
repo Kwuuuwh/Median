@@ -10,7 +10,7 @@ use median_engine::{Engine, Input, Ports};
 use median_market::{Budget, Client as MarketClient, DayFiles, Gate, Host};
 use tauri::{App, Manager};
 use tokio::sync::mpsc;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::account;
 use crate::agent;
@@ -24,6 +24,7 @@ use crate::layer::Layer;
 use crate::market;
 use crate::quarantine::FileQuarantine;
 use crate::rivens;
+use crate::schema::OpenError;
 use crate::settings::SettingsStore;
 use crate::state_sink::{Presence, SharedHoldings, SharedState, TauriStateSink, to_ipc};
 use crate::tasks::{self, Restart};
@@ -136,7 +137,19 @@ pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(collector::CollectorFolder(collector_folder));
     app.manage(crate::commands::DataFolder(root.clone()));
 
-    let history = Arc::new(account::Store::under(&root)?);
+    let history = match account::Store::under(&root) {
+        Ok(history) => Arc::new(history),
+        Err(account::StoreError::Open(OpenError::TooNew { found, version })) => {
+            error!(
+                version = found,
+                build_version = version,
+                "account data written by a later build, median stops"
+            );
+            refuse_later_data(store.load().locale.as_code());
+            std::process::exit(1);
+        }
+        Err(why) => return Err(why.into()),
+    };
     let kept = market::Token::read();
     let market_cache = Arc::new(market::Store::under(&root)?);
     let started = Instant::now();
@@ -558,4 +571,27 @@ pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 
     crate::window::start(app.handle(), !data_bare);
     Ok(())
+}
+
+/// Tells the person, in a system message box in `locale`, that the account data comes from a
+/// later build; returns when the box is closed.
+fn refuse_later_data(locale: &str) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW};
+
+    let said = match locale.starts_with("ru") {
+        true => "Данные median записаны более новой версией.",
+        false => "median data was written by a newer version.",
+    };
+    let wide = |text: &str| text.encode_utf16().chain([0]).collect::<Vec<u16>>();
+    let (text, title) = (wide(said), wide("Median"));
+    // SAFETY: both buffers are NUL-terminated UTF-16 that outlive the call, and a null owner
+    // window is allowed.
+    unsafe {
+        MessageBoxW(
+            std::ptr::null_mut(),
+            text.as_ptr(),
+            title.as_ptr(),
+            MB_OK | MB_ICONERROR,
+        );
+    }
 }

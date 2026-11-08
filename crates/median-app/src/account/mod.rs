@@ -38,7 +38,7 @@ pub use presence::{
 pub use presence_task::tend as tend_presence;
 pub use reader::Reader;
 pub use rivens::RivenBought;
-pub use store::Store;
+pub use store::{Store, StoreError};
 pub use swaps::{record as record_swap, since as swaps_since};
 
 #[cfg(test)]

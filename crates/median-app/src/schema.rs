@@ -23,7 +23,8 @@ pub struct Schema {
     /// one ends at `version`. A file older than the first step's start version cannot be upgraded.
     pub steps: &'static [&'static str],
     /// Whether the file only caches data that can be fetched again, so a file too old to upgrade
-    /// is deleted instead of moved aside.
+    /// is deleted instead of moved aside, and a file from a later build is deleted instead of
+    /// refused.
     pub cache: bool,
 }
 
@@ -41,6 +42,8 @@ pub enum OpenError {
     Sqlite(#[from] rusqlite::Error),
     #[error("the file is at version {found}; this build upgrades from version {oldest} on")]
     TooOld { found: i64, oldest: i64 },
+    #[error("the file is at version {found}, from a build later than this one ({version})")]
+    TooNew { found: i64, version: i64 },
     #[error("the file too old to upgrade could not be moved aside: {0}")]
     SetAside(io::Error),
     #[error("the connection pool could not be built: {0}")]
@@ -49,7 +52,8 @@ pub enum OpenError {
 
 /// Opens the database at `path`: switches it to WAL, migrates it to `schema`, and returns a pool
 /// whose connections have foreign keys on and a busy timeout. A file too old to upgrade is moved
-/// aside as `<name>-v<version>.sqlite` (deleted for a cache) and a new one is created.
+/// aside as `<name>-v<version>.sqlite` (deleted for a cache) and a new one is created; a cache from
+/// a later build is deleted and a new one created, any other file from a later build is refused.
 pub fn open(path: &Path, schema: &Schema) -> Result<Pool, OpenError> {
     match prepare(path, schema) {
         Err(OpenError::TooOld { found, oldest }) => {
@@ -60,6 +64,16 @@ pub fn open(path: &Path, schema: &Schema) -> Result<Pool, OpenError> {
                 oldest_version = oldest,
                 moved_to = aside.map_or_else(|| "deleted".to_owned(), |to| to.display().to_string()),
                 "database too old to upgrade, starting a new one"
+            );
+            prepare(path, schema)?;
+        }
+        Err(OpenError::TooNew { found, version }) if schema.cache => {
+            set_aside(path, found, true).map_err(OpenError::SetAside)?;
+            warn!(
+                path = %path.display(),
+                version = found,
+                build_version = version,
+                "cache from a later build, starting a new one"
             );
             prepare(path, schema)?;
         }
@@ -94,8 +108,8 @@ fn prepare(path: &Path, schema: &Schema) -> Result<(), OpenError> {
 }
 
 /// Migrates the file to `schema`: a new file gets `base`, a file from an earlier build gets the
-/// steps it has not run, a file from a later build is left unchanged. A file with tables but
-/// no version is `TooOld`.
+/// steps it has not run, a file from a later build is `TooNew` and left unchanged. A file with
+/// tables but no version is `TooOld`.
 pub fn migrate(connection: &mut Connection, schema: &Schema) -> Result<(), OpenError> {
     let found: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     if found == 0 {
@@ -114,6 +128,12 @@ pub fn migrate(connection: &mut Connection, schema: &Schema) -> Result<(), OpenE
         return Ok(());
     }
 
+    if found > schema.version {
+        return Err(OpenError::TooNew {
+            found,
+            version: schema.version,
+        });
+    }
     let oldest = schema.oldest();
     if found < oldest {
         return Err(OpenError::TooOld { found, oldest });
@@ -279,14 +299,21 @@ mod tests {
     }
 
     #[test]
-    fn leaves_a_file_from_a_later_build_alone() {
+    fn a_file_from_a_later_build_is_refused_and_left_unchanged() {
         let mut connection = Connection::open_in_memory().unwrap();
         connection
             .execute_batch("CREATE TABLE later (id INTEGER PRIMARY KEY); PRAGMA user_version = 9;")
             .unwrap();
 
-        migrate(&mut connection, &SCHEMA).unwrap();
+        let refused = migrate(&mut connection, &SCHEMA);
 
+        assert!(matches!(
+            refused,
+            Err(OpenError::TooNew {
+                found: 9,
+                version: 3
+            })
+        ));
         assert_eq!(version(&connection), 9);
         assert_eq!(columns(&connection, "later"), ["id"]);
     }
@@ -298,6 +325,13 @@ mod tests {
         let _ = fs::remove_dir_all(&place);
         fs::create_dir_all(&place).expect("a place for the files");
         place
+    }
+
+    fn later_file(path: &Path) {
+        let connection = Connection::open(path).unwrap();
+        connection
+            .execute_batch("CREATE TABLE later (id INTEGER PRIMARY KEY); PRAGMA user_version = 9;")
+            .unwrap();
     }
 
     fn too_old_file(path: &Path) {
@@ -342,5 +376,37 @@ mod tests {
 
         assert_eq!(version(&Connection::open(&path).unwrap()), 3);
         assert!(!place.join("market-v1.sqlite").exists());
+    }
+
+    #[test]
+    fn a_file_from_a_later_build_is_refused_and_kept() {
+        let place = place("later");
+        let path = place.join("account.sqlite");
+        later_file(&path);
+
+        let refused = open(&path, &SCHEMA);
+
+        assert!(matches!(refused, Err(OpenError::TooNew { found: 9, .. })));
+        let kept = Connection::open(&path).unwrap();
+        assert_eq!(version(&kept), 9);
+        assert_eq!(columns(&kept, "later"), ["id"]);
+    }
+
+    #[test]
+    fn a_cache_from_a_later_build_is_deleted_and_a_new_one_started() {
+        let place = place("later-cache");
+        let path = place.join("market.sqlite");
+        later_file(&path);
+        let cache = Schema {
+            cache: true,
+            ..SCHEMA
+        };
+
+        let pool = open(&path, &cache).expect("a new file opens");
+        drop(pool);
+
+        let fresh = Connection::open(&path).unwrap();
+        assert_eq!(version(&fresh), 3);
+        assert_eq!(columns(&fresh, "later"), Vec::<String>::new());
     }
 }
